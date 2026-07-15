@@ -117,7 +117,7 @@ class MaterialParamsDialog(QtWidgets.QDialog):
                 mat = extra.get("material")
             if mat is None:
                 # Assign default
-                label = LAYER_MATERIAL_MAP.get(name, "地面")
+                label = LAYER_MATERIAL_MAP.get(name, "干燥土壤")
                 mat = dict(DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"]))
                 mat["label"] = label
                 if extra is None:
@@ -230,7 +230,7 @@ class MaterialParamsDialog(QtWidgets.QDialog):
                 extra = obj["extra"]
             mat = extra.get("material")
             if mat is None:
-                label = LAYER_MATERIAL_MAP.get(name, "地面")
+                label = LAYER_MATERIAL_MAP.get(name, "干燥土壤")
                 mat = dict(DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"]))
                 mat["label"] = label
                 extra["material"] = mat

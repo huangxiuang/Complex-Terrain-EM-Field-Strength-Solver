@@ -72,7 +72,8 @@ class ScenePropsDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
 
         # 场景概览
-        n_objects = len(scene_objects)
+        _vis = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
+        n_em = sum(1 for k in scene_objects if k not in _vis and k != "antenna")
         obstacles = [k for k, v in scene_objects.items()
                      if v.get("extra", {}).get("obstacle_type") == "wall"]
         layers = [k for k in scene_objects if k.startswith("layer_") or
@@ -80,9 +81,10 @@ class ScenePropsDialog(QtWidgets.QDialog):
         terrain = scene_objects.get("terrain")
 
         summary = (
-            f"对象总数：{n_objects}  |  障碍物：{len(obstacles)} 个  |  "
+            f"EM 对象：{n_em}  |  障碍物：{len(obstacles)} 个  |  "
             f"图层：{len(layers)} 个  |  "
-            f"天线：{'有' if 'antenna' in scene_objects else '无'}"
+            f"天线：{'有' if 'antenna' in scene_objects else '无'}  |  "
+            f"装饰：{sum(1 for k in _vis if k in scene_objects)} 个"
         )
         layout.addWidget(QtWidgets.QLabel(summary))
 
@@ -92,9 +94,13 @@ class ScenePropsDialog(QtWidgets.QDialog):
         table.setHorizontalHeaderLabels([
             "名称", "类型", "位置/尺寸", "材料", "ε_r", "σ (S/m)"
         ])
-        rows = []
+
+        # 第一行：空气（背景介质）
+        rows = [["（背景）", "空气", "全空间", "空气", "1.0006", "0.0"]]
 
         for name, obj in scene_objects.items():
+            if name in _vis:
+                continue
             mesh = obj.get("mesh")
             if mesh is None:
                 continue
