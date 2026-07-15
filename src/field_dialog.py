@@ -142,8 +142,8 @@ class FieldPointDialog(QtWidgets.QDialog):
                 b = obj["mesh"].bounds
                 rect = plt.Rectangle(
                     (b[0], b[2]), b[1]-b[0], b[3]-b[2],
-                    linewidth=2, edgecolor="red", facecolor="red",
-                    alpha=0.25, zorder=2
+                    linewidth=1.5, edgecolor="#cc0000", facecolor="none",
+                    linestyle="--", zorder=2
                 )
                 self._ax.add_patch(rect)
             except Exception:
@@ -416,7 +416,7 @@ class PreciseRxDialog(QtWidgets.QDialog):
             if nm in ("terrain","antenna") or o.get("type")!="mesh": continue
             b=o["mesh"].bounds
             self._ax1.add_patch(plt.Rectangle((b[0],b[2]),b[1]-b[0],b[3]-b[2],
-                color="red",alpha=0.25))
+                linewidth=1.5, edgecolor="#cc0000", facecolor="none", linestyle="--"))
         xys = np.array(self._xy_points) if self._xy_points else np.empty((0,2))
         if len(xys)>0:
             self._ax1.scatter(xys[:,0], xys[:,1], c="orange", s=30, zorder=5)
