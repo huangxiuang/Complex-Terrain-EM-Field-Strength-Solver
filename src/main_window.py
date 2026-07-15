@@ -21,6 +21,8 @@ from src.layer_dialog import LayerManagementDialog, ClipManagerDialog
 from src.material_params_dialog import MaterialParamsDialog, LAYER_MATERIAL_MAP
 from src.antenna_dialog import AntennaDialog
 from src.sweep_dialog import SweepDialog
+from src.scene.scenes import SCENE_REGISTRY, build_metal_barrier
+from src.scene.scene_dialog import SceneSelectDialog, ScenePropsDialog
 
 import matplotlib.path as mpath
 
@@ -34,7 +36,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Scene objects
         self.scene_objects = {}
         self.plotter_actors = {}
-        self._pending_rx_points = []   # measurement points awaiting solve
+        self._pending_rx_points = []
+        self._current_scene_key = "metal_barrier"
 
         # ── Central 3D viewport ──
         self.plotter = pvqt.QtInteractor(self)
@@ -67,7 +70,7 @@ class MainWindow(QtWidgets.QMainWindow):
         p.show_axes()
         p.show_grid()
 
-        self.scene_objects = build_simple_scene()
+        self.scene_objects = SCENE_REGISTRY[self._current_scene_key]["builder"]()
         # Ensure all materials have defaults (safe for missing user input)
         self._load_material_defaults()
         for name, obj in self.scene_objects.items():
@@ -94,6 +97,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _setup_menus(self):
         mb = self.menuBar()
+
+        # ── Scene menu ──
+        menu_scene = mb.addMenu("场景 (&S)")
+        menu_scene.addAction("场景选择…", self._on_select_scene)
+        menu_scene.addAction("场景属性…", self._on_scene_props)
 
         # ── View menu ──
         menu_view = mb.addMenu("视图 (&V)")
@@ -226,6 +234,40 @@ class MainWindow(QtWidgets.QMainWindow):
         n = len(self._pending_rx_points)
         self._btn_solve.setEnabled(n > 0)
         self._rx_count_label.setText(f"待求解: {n} 个点" if n else "未添加测量点")
+
+    def _on_select_scene(self):
+        dlg = SceneSelectDialog(self, self._current_scene_key)
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
+        new_key = dlg.selected_key()
+        if new_key == self._current_scene_key:
+            return
+        self._current_scene_key = new_key
+        self._load_scene()
+
+    def _on_scene_props(self):
+        dlg = ScenePropsDialog(self, self.scene_objects)
+        dlg.exec_()
+
+    def _load_scene(self):
+        # 清除旧场景
+        for name in list(self.plotter_actors.keys()):
+            self.plotter.remove_actor(self.plotter_actors.pop(name))
+        self.scene_objects.clear()
+        self._pending_rx_points.clear()
+        self._update_solve_ui()
+
+        # 加载新场景
+        info = SCENE_REGISTRY[self._current_scene_key]
+        self.scene_objects = info["builder"]()
+        self._load_material_defaults()
+        for name, obj in self.scene_objects.items():
+            if obj.get("visible", True):
+                self._add_actor(name, obj)
+
+        self.plotter.camera_position = [(20, -14, 10), (0, 0, 3), (0, 0, 1)]
+        self.plotter.render()
+        self.statusBar().showMessage(f"已加载场景：{info['name']}")
 
     def _on_sweep(self):
         if not self._pending_rx_points:
