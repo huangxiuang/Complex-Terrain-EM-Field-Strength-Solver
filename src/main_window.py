@@ -417,15 +417,43 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "错误", "场景中未找到天线！")
             return
         config = ant.get("extra", {}).get("antenna_config", {})
+        cur_pos = ant.get("extra", {}).get("position", (-5, 0, 6))
+        config["position"] = cur_pos
         dlg = AntennaDialog(self, config)
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
             new_config = dlg.get_config()
             if "extra" not in ant:
                 ant["extra"] = {}
             ant["extra"]["antenna_config"] = new_config
+            # 同步位置到场景
+            new_pos = new_config.get("position", cur_pos)
+            ant["extra"]["position"] = new_pos
+            # 更新可视化：移除旧天线标记，重建新的
+            self._rebuild_antenna_marker(new_pos)
             self.statusBar().showMessage(
                 f"天线已更新：{new_config['type']} @ {new_config['frequency']/1e9:.1f} GHz"
             )
+
+    def _rebuild_antenna_marker(self, new_pos):
+        import pyvista as pv
+        radius = 0.3
+        sphere = pv.Sphere(radius=radius, center=new_pos)
+        pole = pv.Cylinder(
+            center=(new_pos[0], new_pos[1], new_pos[2] / 2),
+            direction=(0, 0, 1),
+            radius=radius * 0.3,
+            height=new_pos[2],
+        )
+        ant_mesh = sphere.merge([pole])
+        self.scene_objects["antenna"]["mesh"] = ant_mesh
+        # 替换 3D 场景中的 actor
+        old_actor = self.plotter_actors.pop("antenna", None)
+        if old_actor is not None:
+            self.plotter.remove_actor(old_actor)
+        params = self.scene_objects["antenna"]["params"]
+        actor = self.plotter.add_mesh(ant_mesh, **params)
+        self.plotter_actors["antenna"] = actor
+        self.plotter.render()
 
 
 class RxManageDialog(QtWidgets.QDialog):

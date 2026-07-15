@@ -56,15 +56,33 @@ class AntennaDialog(QtWidgets.QDialog):
         # 分隔线
         left.addWidget(self._h_line())
 
-        # 天线位置（只读显示）
-        pos_row = QtWidgets.QHBoxLayout()
-        pos_row.addWidget(QtWidgets.QLabel("位置 (x, y, z):"))
+        # 天线位置
+        pos_group = QtWidgets.QGroupBox("天线位置")
+        pos_layout = QtWidgets.QFormLayout()
+        self._spin_pos_x = QtWidgets.QDoubleSpinBox()
+        self._spin_pos_x.setRange(-100, 100); self._spin_pos_x.setDecimals(2)
+        self._spin_pos_x.setSuffix(" m")
+        self._spin_pos_x.valueChanged.connect(self._on_param_changed)
+        pos_layout.addRow("X:", self._spin_pos_x)
+
+        self._spin_pos_y = QtWidgets.QDoubleSpinBox()
+        self._spin_pos_y.setRange(-100, 100); self._spin_pos_y.setDecimals(2)
+        self._spin_pos_y.setSuffix(" m")
+        self._spin_pos_y.valueChanged.connect(self._on_param_changed)
+        pos_layout.addRow("Y:", self._spin_pos_y)
+
+        self._spin_pos_z = QtWidgets.QDoubleSpinBox()
+        self._spin_pos_z.setRange(-10, 200); self._spin_pos_z.setDecimals(2)
+        self._spin_pos_z.setSuffix(" m")
+        self._spin_pos_z.valueChanged.connect(self._on_param_changed)
+        pos_layout.addRow("Z:", self._spin_pos_z)
+        pos_group.setLayout(pos_layout)
+
         pos = self._config.get("position", (-5, 0, 6))
-        self._pos_label = QtWidgets.QLabel(f"({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f}) m")
-        self._pos_label.setStyleSheet("color: #666;")
-        pos_row.addWidget(self._pos_label)
-        pos_row.addStretch()
-        left.addLayout(pos_row)
+        self._spin_pos_x.setValue(pos[0])
+        self._spin_pos_y.setValue(pos[1])
+        self._spin_pos_z.setValue(pos[2])
+        left.addWidget(pos_group)
 
         left.addWidget(self._h_line())
 
@@ -161,20 +179,24 @@ class AntennaDialog(QtWidgets.QDialog):
             )
 
     def _on_param_changed(self):
-        # 频率
         self._config["frequency"] = self._freq_spin.value() * 1e9
-        # 动态参数
+        self._config["position"] = (
+            self._spin_pos_x.value(),
+            self._spin_pos_y.value(),
+            self._spin_pos_z.value(),
+        )
         for key, spin in self._param_spinboxes.items():
             self._config[key] = spin.value()
-        # 当前类型
         self._config["type"] = self._type_combo.currentData()
         self._update_preview()
 
     def _reset_defaults(self):
         self._config = dict(DEFAULT_ANTENNA_CONFIG)
-        self._config["position"] = self._config.get("position", (-5, 0, 6))
-        self._config["frequency"] = self._config.get("frequency", 2.8e9)
-        # 更新 UI
+        self._config["position"] = (-5.0, 0.0, 6.0)
+        self._config["frequency"] = 2.8e9
+        self._spin_pos_x.setValue(-5.0)
+        self._spin_pos_y.setValue(0.0)
+        self._spin_pos_z.setValue(6.0)
         for key, spin in self._param_spinboxes.items():
             params = ANTENNA_PARAMS.get(self._type_combo.currentData(), [])
             for pk, default, _, _, _ in params:
@@ -194,26 +216,26 @@ class AntennaDialog(QtWidgets.QDialog):
             va="bottom", fontsize=10
         )
 
-        # 生成方向图数据（角度 0°=水平，90°=天顶）
-        theta_deg = np.linspace(-90, 90, 361)
-        theta_rad = np.radians(theta_deg)
-
-        # 用天线方向图函数计算，设 r0=1 仅用于角度映射
         h_ant = 0.0
         r0 = 1.0
-        z_vals = r0 * np.tan(theta_rad) + h_ant
-        valid = np.abs(theta_rad) < np.pi / 2
-        pattern = np.zeros_like(theta_deg, dtype=float)
-        pattern[valid] = _antenna_pattern(self._config, z_vals[valid], h_ant, r0)
 
-        # 极坐标：角度 0=天顶，90=水平
-        polar_theta = np.radians(90 - theta_deg)  # 转换为极坐标角度
+        # 用固定 z 范围映射到仰角（避免 tan 在 ±90° 处发散）
+        z_max = 20.0
+        z_vals = np.linspace(-z_max, z_max, 721)
+        valid = z_vals != h_ant
+        theta_elev = np.arctan2(z_vals[valid], r0)
 
-        # 绘制上半球
-        self._ax.fill_between(polar_theta, 0, pattern, alpha=0.3)
-        self._ax.plot(polar_theta, pattern, "b-", linewidth=1.5)
+        pattern_raw = _antenna_pattern(self._config, z_vals[valid], h_ant, r0)
+        # 极坐标 θ=0° 为天顶(N)，只绘制上半球 (θ_elev ∈ [-90°, 90°])
+        polar_theta = np.pi / 2 - theta_elev  # θ_elev=90°→0, θ_elev=-90°→π
 
-        # -3 dB 线
+        # 按 polar_theta 升序排序（fill_between 要求 x 单调递增）
+        sort_idx = np.argsort(polar_theta)
+        pt_sorted = polar_theta[sort_idx]
+        p_sorted = pattern_raw[sort_idx]
+
+        self._ax.fill_between(pt_sorted, 0, p_sorted, alpha=0.3, color="tab:blue")
+        self._ax.plot(pt_sorted, p_sorted, "b-", linewidth=1.5)
         self._ax.axhline(y=1 / np.sqrt(2), color="red", linestyle="--", linewidth=0.8, alpha=0.6)
 
         self._ax.set_theta_zero_location("N")
@@ -229,13 +251,16 @@ class AntennaDialog(QtWidgets.QDialog):
     # ── 公共接口 ──
 
     def get_config(self):
-        """返回用户设置的天线配置。"""
-        config = {
+        return {
             "type": self._type_combo.currentData(),
             "frequency": self._freq_spin.value() * 1e9,
+            "position": (
+                self._spin_pos_x.value(),
+                self._spin_pos_y.value(),
+                self._spin_pos_z.value(),
+            ),
             "tilt_angle": self._config.get("tilt_angle", 0.0),
-            "sigma_z": self._config.get("sigma_z", 2.0),
+            "sigma_z": self._config.get("sigma_z", 4.0),
             "patch_hpbw": self._config.get("patch_hpbw", 70.0),
             "horn_hpbw": self._config.get("horn_hpbw", 30.0),
         }
-        return config
