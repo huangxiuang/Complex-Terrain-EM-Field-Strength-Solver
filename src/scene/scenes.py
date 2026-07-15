@@ -126,66 +126,167 @@ def build_hills():
 
 
 # ═══════════════════════════════════════════════════════════════
-#  场景 3：经典原始（本项目最初场景）
+#  场景 3：经典原始（项目最初默认场景）
 # ═══════════════════════════════════════════════════════════════
 
-@register("classic", "经典原始", "平坦地面 + 沙/草/土分层 + 水面 + 金属挡板，项目最初默认场景")
+@register("classic", "经典原始", "高斯山丘 + 正弦河道 + 沙/草/土分层 + 植被 + 双机 + 鸟 + 树，项目最初默认场景")
 def build_classic():
-    span, res = 10.0, 50
-    xs = np.linspace(-span, span, res)
-    ys = np.linspace(-span, span, res)
+    res_x, res_y = 60, 60
+    xs = np.linspace(-10, 10, res_x)
+    ys = np.linspace(-10, 10, res_y)
     X, Y = np.meshgrid(xs, ys)
-    Z = np.zeros_like(X)
-    Z += 0.05 * (X + span) / (2 * span)  # 0→0.05m 微坡
+
+    # 3 座高斯山丘
+    Z = (
+        5.0 * np.exp(-((X - 4) ** 2 + (Y - 3) ** 2) / 12)
+        + 3.5 * np.exp(-((X + 3) ** 2 + (Y - 4) ** 2) / 9)
+        + 2.0 * np.exp(-((X - 1) ** 2 + (Y + 2) ** 2) / 15)
+    )
+
+    # 正弦河道
+    river_width = 1.2
+    river_depth = 0.7
+    for i in range(res_x):
+        for j in range(res_y):
+            dist = abs(X[i, j] - 3.0 * np.sin(Y[i, j] * 0.4))
+            if dist < river_width:
+                t = dist / river_width
+                Z[i, j] = Z[i, j] * (0.05 + 0.15 * t) - river_depth * (1 - t)
 
     actors = {}
-    actors["terrain"] = _make_terrain(X, Y, Z)
 
-    # 3 层高程阈值土壤
-    surface = actors["terrain"]["mesh"].extract_surface()
+    # ── 地形 + 3 层土壤 ──
+    grid = pv.StructuredGrid(X, Y, Z)
+    grid["elevation"] = Z.flatten(order="F")
+    actors["terrain"] = {
+        "mesh": grid, "type": "mesh", "visible": True,
+        "params": {"color": "#f2e2a8", "smooth_shading": True, "opacity": 1.0},
+        "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
+                  "material": {"label": "地面", "eps_r": 15.0, "sigma": 0.01}},
+        "name": "terrain",
+    }
+
+    # 高程阈值土壤层
+    surface = grid.extract_surface()
     z_min, z_max = float(Z.min()), float(Z.max())
     rng = max(z_max - z_min, 0.01)
     s_max = z_min + rng * 0.20
     g_max = z_min + rng * 0.45
-    eps = 0.005
-
-    sand = surface.threshold([z_min - 0.1, s_max + eps], scalars="elevation", preference="point")
+    eps = 0.02
+    sand = surface.threshold([z_min - 1, s_max + eps], scalars="elevation", preference="point")
     grass = surface.threshold([s_max - eps, g_max + eps], scalars="elevation", preference="point")
-    earth = surface.threshold([g_max - eps, z_max + 0.1], scalars="elevation", preference="point")
+    earth = surface.threshold([g_max - eps, z_max + 1], scalars="elevation", preference="point")
 
     actors["layer_sand"] = {
-        "mesh": sand, "type": "mesh", "visible": True,
+        "mesh": sand, "type": "mesh", "visible": False,
         "params": {"scalars": "elevation", "cmap": ["#f5e6b8", "#e8c76a", "#d4a843"],
-                   "clim": [z_min, s_max], "smooth_shading": True, "opacity": 0.8, "show_scalar_bar": False},
+                   "clim": [z_min, s_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
         "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 5.0}}, "name": "layer_sand",
     }
     actors["layer_grass"] = {
-        "mesh": grass, "type": "mesh", "visible": True,
+        "mesh": grass, "type": "mesh", "visible": False,
         "params": {"scalars": "elevation", "cmap": ["#a8d5a2", "#5a9e4c", "#2d6b28"],
-                   "clim": [s_max, g_max], "smooth_shading": True, "opacity": 0.8, "show_scalar_bar": False},
+                   "clim": [s_max, g_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
         "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 10.0}}, "name": "layer_grass",
     }
     actors["layer_earth"] = {
-        "mesh": earth, "type": "mesh", "visible": True,
+        "mesh": earth, "type": "mesh", "visible": False,
         "params": {"scalars": "elevation", "cmap": ["#d4b896", "#8b6f47", "#5c4033"],
-                   "clim": [g_max, z_max], "smooth_shading": True, "opacity": 0.8, "show_scalar_bar": False},
+                   "clim": [g_max, z_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
         "extra": {"material": {"label": "中等干燥地面", "eps_r": 15.0, "sigma": 0.01, "thickness_cm": 20.0}}, "name": "layer_earth",
     }
 
-    # 水面（z=0.02，覆盖全地形）
-    water_grid = pv.StructuredGrid(X, Y, np.full_like(X, 0.02))
-    actors["layer_water"] = {
-        "mesh": water_grid, "type": "mesh", "visible": True,
-        "params": {"color": "#2980b9", "opacity": 0.5, "smooth_shading": True},
-        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0}},
-        "name": "layer_water",
+    # ── 河道水面 ──
+    n_y, n_w = 100, 12
+    river_y = np.linspace(-10, 10, n_y)
+    river_w = np.linspace(-0.8, 0.8, n_w)
+    Ry, Rw = np.meshgrid(river_y, river_w)
+    Rx_center = 3.0 * np.sin(Ry * 0.4)
+    Rx = Rx_center + Rw
+    river_grid = pv.StructuredGrid(Rx, Ry, np.full_like(Rx, 0.0))
+    actors["river"] = {
+        "mesh": river_grid, "type": "mesh", "visible": True,
+        "params": {"color": "#1488cc", "opacity": 0.88, "smooth_shading": True},
+        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0},
+                  "Ry": Ry, "phase": 0.0},
+        "name": "river",
     }
 
-    # 金属挡板
-    actors["wall"] = _make_wall(z_top=5.0, thickness=0.1, y_half=8.0)
+    # ── 河岸植被 ──
+    bank_n = 100
+    bank_y = np.linspace(-10, 10, bank_n)
+    bank_x_left = 3.0 * np.sin(bank_y * 0.4) - 0.88
+    bank_x_right = 3.0 * np.sin(bank_y * 0.4) + 0.88
+    bank_z = np.full_like(bank_y, -0.15)
+    left_pts = pv.PolyData(np.column_stack((bank_x_left, bank_y, bank_z)))
+    right_pts = pv.PolyData(np.column_stack((bank_x_right, bank_y, bank_z)))
+    actors["vegetation"] = {
+        "mesh": left_pts.merge(right_pts), "type": "points", "visible": True,
+        "params": {"color": "#2d882d", "point_size": 10, "opacity": 0.8},
+        "extra": None, "name": "vegetation",
+    }
 
-    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
-    actors["antenna"] = _make_antenna(tz)
+    # ── 双机 ──
+    def _make_jet():
+        fuselage = pv.Cylinder(center=(0, 0, 0), direction=(1, 0, 0), radius=0.16, height=1.6)
+        nose = pv.Cone(center=(1.05, 0, 0), direction=(1, 0, 0), height=0.5, radius=0.16)
+        wl = pv.Box(bounds=(-0.3, 0.3, -0.9, 0, -0.025, 0.025)); wl.translate((0, -0.45, 0), inplace=True)
+        wr = pv.Box(bounds=(-0.3, 0.3, 0, 0.9, -0.025, 0.025)); wr.translate((0, 0.45, 0), inplace=True)
+        hl = pv.Box(bounds=(-0.125, 0.125, -0.4, 0, -0.015, 0.015)); hl.translate((-0.717, -0.2, 0), inplace=True)
+        hr = pv.Box(bounds=(-0.125, 0.125, 0, 0.4, -0.015, 0.015)); hr.translate((-0.717, 0.2, 0), inplace=True)
+        vt = pv.Box(bounds=(-0.95, -0.8, -0.015, 0.015, 0, 0.35))
+        nozzle = pv.Cylinder(center=(-0.8, 0, 0), direction=(-1, 0, 0), radius=0.14, height=0.03)
+        jet = fuselage.merge([nose, wl, wr, hl, hr, vt, nozzle])
+        jet.scale(1.5, inplace=True)
+        return jet
+
+    jet1 = _make_jet(); jet1.translate((-6, -2, 8), inplace=True)
+    actors["aircraft"] = {
+        "mesh": jet1, "type": "mesh", "visible": True,
+        "params": {"color": "#c4c4c4", "smooth_shading": True, "ambient": 0.35, "diffuse": 0.75, "specular": 0.6, "specular_power": 40},
+        "extra": None, "name": "aircraft",
+    }
+
+    jet2 = _make_jet(); jet2.translate((-6, 3, 7.5), inplace=True)
+    actors["aircraft2"] = {
+        "mesh": jet2, "type": "mesh", "visible": True,
+        "params": {"color": "#cc3333", "smooth_shading": True, "ambient": 0.35, "diffuse": 0.75, "specular": 0.6, "specular_power": 40},
+        "extra": None, "name": "aircraft2",
+    }
+
+    # ── 鸟 ──
+    body = pv.Sphere(radius=0.12, center=(0, 0, 0))
+    head = pv.Sphere(radius=0.06, center=(0.15, 0, 0.04))
+    lw = pv.Cone(center=(0, -0.15, 0.02), direction=(0, -1, 0.2), height=0.18, radius=0.06)
+    rw = pv.Cone(center=(0, 0.15, 0.02), direction=(0, 1, 0.2), height=0.18, radius=0.06)
+    tail = pv.Cone(center=(-0.12, 0, 0.02), direction=(-1, 0, 0.1), height=0.08, radius=0.04)
+    bird_mesh = body.merge([head, lw, rw, tail]); bird_mesh.translate((5, -1, 7), inplace=True)
+    actors["bird"] = {
+        "mesh": bird_mesh, "type": "mesh", "visible": True,
+        "params": {"color": "#e8c36a", "smooth_shading": True},
+        "extra": None, "name": "bird",
+    }
+
+    # ── 树（贴合地形） ──
+    tree_x, tree_y = 4.5, 2.0
+    tz = float(5.0 * np.exp(-((tree_x-4)**2+(tree_y-3)**2)/12) +
+               3.5 * np.exp(-((tree_x+3)**2+(tree_y-4)**2)/9) +
+               2.0 * np.exp(-((tree_x-1)**2+(tree_y+2)**2)/15))
+    trunk = pv.Cylinder(center=(0, 0, -0.25), direction=(0, 0, 1), radius=0.06, height=0.5)
+    leaves = pv.Cone(center=(0, 0, 0.15), direction=(0, 0, 1), height=0.5, radius=0.2)
+    trunk.points[:, :2] *= 0.5
+    tree_mesh = trunk.merge(leaves); tree_mesh.translate((tree_x, tree_y, tz + 0.5), inplace=True)
+    actors["tree"] = {
+        "mesh": tree_mesh, "type": "mesh", "visible": True,
+        "params": {"color": "#5a8f3c", "smooth_shading": True},
+        "extra": None, "name": "tree",
+    }
+
+    # ── 天线 ──
+    ix = np.argmin(np.abs(xs - ANTENNA_POS[0]))
+    iy = np.argmin(np.abs(ys - ANTENNA_POS[1]))
+    ant_tz = float(Z[iy, ix])
+    actors["antenna"] = _make_antenna(ant_tz)
     return actors
 
 
