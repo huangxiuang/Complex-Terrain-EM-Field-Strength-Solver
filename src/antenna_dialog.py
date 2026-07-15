@@ -33,6 +33,7 @@ class AntennaDialog(QtWidgets.QDialog):
         self._update_preview()
 
     def _build_ui(self):
+        self._initializing = True
         layout = QtWidgets.QHBoxLayout(self)
 
         # ── 左侧：参数面板 ──
@@ -139,6 +140,7 @@ class AntennaDialog(QtWidgets.QDialog):
 
         # 初始化动态参数
         self._rebuild_params()
+        self._initializing = False
 
     def _h_line(self):
         line = QtWidgets.QFrame()
@@ -179,6 +181,8 @@ class AntennaDialog(QtWidgets.QDialog):
             )
 
     def _on_param_changed(self):
+        if getattr(self, '_initializing', False):
+            return
         self._config["frequency"] = self._freq_spin.value() * 1e9
         self._config["position"] = (
             self._spin_pos_x.value(),
