@@ -124,11 +124,19 @@ class FieldPointDialog(QtWidgets.QDialog):
                     z = pts[:, 2]
                     z_min, z_max = z.min(), z.max()
                     n_levels = 8 if len(pts) > 2000 else 6
-                    levels = np.linspace(z_min, z_max, n_levels)
-                    self._ax.tricontour(triang, z, levels=levels,
-                                        colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
-                    self._ax.tricontourf(triang, z, levels=levels,
-                                         cmap="terrain", alpha=0.15, zorder=0)
+                    if z_max - z_min < 0.001:
+                        # 平坦地形：画单条等高线
+                        self._ax.tricontour(triang, z, levels=[z_min],
+                                            colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
+                    else:
+                        levels = np.linspace(z_min, z_max, n_levels)
+                        self._ax.tricontour(triang, z, levels=levels,
+                                            colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
+                        try:
+                            self._ax.tricontourf(triang, z, levels=levels,
+                                                 cmap="terrain", alpha=0.15, zorder=0)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
@@ -386,11 +394,18 @@ class PreciseRxDialog(QtWidgets.QDialog):
                     z_vals = sp[:, 2]
                     zmin, zmax = z_vals.min(), z_vals.max()
                     nlv = 8 if len(sp) > 2000 else 6
-                    levels = np.linspace(zmin, zmax, nlv)
-                    self._ax1.tricontour(triang, z_vals, levels=levels,
-                                         colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
-                    self._ax1.tricontourf(triang, z_vals, levels=levels,
-                                          cmap="terrain", alpha=0.12, zorder=0)
+                    if zmax - zmin < 0.001:
+                        self._ax1.tricontour(triang, z_vals, levels=[zmin],
+                                             colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
+                    else:
+                        levels = np.linspace(zmin, zmax, nlv)
+                        self._ax1.tricontour(triang, z_vals, levels=levels,
+                                             colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
+                        try:
+                            self._ax1.tricontourf(triang, z_vals, levels=levels,
+                                                  cmap="terrain", alpha=0.12, zorder=0)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
