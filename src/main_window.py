@@ -530,3 +530,11 @@ class RxManageDialog(QtWidgets.QDialog):
                 continue
             pts.append((x, y, z))
         return pts
+
+
+if __name__ == "__main__":
+    import sys
+    from PyQt5 import QtWidgets
+    app = QtWidgets.QApplication(sys.argv)
+    window = MainWindow()
+    sys.exit(app.exec_())
