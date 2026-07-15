@@ -126,44 +126,63 @@ def build_hills():
 
 
 # ═══════════════════════════════════════════════════════════════
-#  场景 3：山谷河流
+#  场景 3：经典原始（本项目最初场景）
 # ═══════════════════════════════════════════════════════════════
 
-@register("valley_river", "山谷河流", "V 形山谷 + 贯穿河流，水体对电磁波的反射/吸收效应")
-def build_valley_river():
-    span, res = 10.0, 60
+@register("classic", "经典原始", "平坦地面 + 沙/草/土分层 + 水面 + 金属挡板，项目最初默认场景")
+def build_classic():
+    span, res = 10.0, 50
     xs = np.linspace(-span, span, res)
     ys = np.linspace(-span, span, res)
     X, Y = np.meshgrid(xs, ys)
-
-    # 浅山谷 + 两侧缓坡
-    valley = 3.0 * np.exp(-X ** 2 / 5) * (1 + 0.2 * np.sin(Y * 0.5))
-    ridges = (2.0 * np.exp(-((X + 6) ** 2) / 15) +
-              2.0 * np.exp(-((X - 6) ** 2) / 15))
-    Z = ridges - valley + 3.0
+    Z = np.zeros_like(X)
+    Z += 0.05 * (X + span) / (2 * span)  # 0→0.05m 微坡
 
     actors = {}
     actors["terrain"] = _make_terrain(X, Y, Z)
 
-    # 河流：贴在山谷底部地形上
-    river_mask = (X > -2.5) & (X < 2.5)
-    water_X = X[river_mask].reshape(-1)
-    water_Y = Y[river_mask].reshape(-1)
-    water_Z_base = Z[river_mask].reshape(-1)  # 取实际地形高度
-    nx = len(np.unique(water_X))
-    ny = len(np.unique(water_Y))
-    if nx > 1 and ny > 1:
-        wx = water_X.reshape(ny, nx)
-        wy = water_Y.reshape(ny, nx)
-        wz_base = water_Z_base.reshape(ny, nx)
-        wz = wz_base + 0.15  # 水面略高于地形
-        water_grid = pv.StructuredGrid(wx, wy, wz)
-        actors["river"] = {
-            "mesh": water_grid, "type": "mesh", "visible": True,
-            "params": {"color": "#2980b9", "opacity": 0.7, "smooth_shading": True},
-            "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0}},
-            "name": "river",
-        }
+    # 3 层高程阈值土壤
+    surface = actors["terrain"]["mesh"].extract_surface()
+    z_min, z_max = float(Z.min()), float(Z.max())
+    rng = max(z_max - z_min, 0.01)
+    s_max = z_min + rng * 0.20
+    g_max = z_min + rng * 0.45
+    eps = 0.005
+
+    sand = surface.threshold([z_min - 0.1, s_max + eps], scalars="elevation", preference="point")
+    grass = surface.threshold([s_max - eps, g_max + eps], scalars="elevation", preference="point")
+    earth = surface.threshold([g_max - eps, z_max + 0.1], scalars="elevation", preference="point")
+
+    actors["layer_sand"] = {
+        "mesh": sand, "type": "mesh", "visible": True,
+        "params": {"scalars": "elevation", "cmap": ["#f5e6b8", "#e8c76a", "#d4a843"],
+                   "clim": [z_min, s_max], "smooth_shading": True, "opacity": 0.8, "show_scalar_bar": False},
+        "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 5.0}}, "name": "layer_sand",
+    }
+    actors["layer_grass"] = {
+        "mesh": grass, "type": "mesh", "visible": True,
+        "params": {"scalars": "elevation", "cmap": ["#a8d5a2", "#5a9e4c", "#2d6b28"],
+                   "clim": [s_max, g_max], "smooth_shading": True, "opacity": 0.8, "show_scalar_bar": False},
+        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 10.0}}, "name": "layer_grass",
+    }
+    actors["layer_earth"] = {
+        "mesh": earth, "type": "mesh", "visible": True,
+        "params": {"scalars": "elevation", "cmap": ["#d4b896", "#8b6f47", "#5c4033"],
+                   "clim": [g_max, z_max], "smooth_shading": True, "opacity": 0.8, "show_scalar_bar": False},
+        "extra": {"material": {"label": "中等干燥地面", "eps_r": 15.0, "sigma": 0.01, "thickness_cm": 20.0}}, "name": "layer_earth",
+    }
+
+    # 水面（z=0.02，覆盖全地形）
+    water_grid = pv.StructuredGrid(X, Y, np.full_like(X, 0.02))
+    actors["layer_water"] = {
+        "mesh": water_grid, "type": "mesh", "visible": True,
+        "params": {"color": "#2980b9", "opacity": 0.5, "smooth_shading": True},
+        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0}},
+        "name": "layer_water",
+    }
+
+    # 金属挡板
+    actors["wall"] = _make_wall(z_top=5.0, thickness=0.1, y_half=8.0)
 
     tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
     actors["antenna"] = _make_antenna(tz)
