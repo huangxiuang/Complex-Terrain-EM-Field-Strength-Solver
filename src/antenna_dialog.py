@@ -151,6 +151,7 @@ class AntennaDialog(QtWidgets.QDialog):
     # ── 动态参数 ──
 
     def _on_type_changed(self):
+        self._config["type"] = self._type_combo.currentData()
         self._rebuild_params()
         self._update_preview()
 
@@ -223,20 +224,25 @@ class AntennaDialog(QtWidgets.QDialog):
         h_ant = 0.0
         r0 = 1.0
 
-        # 用固定 z 范围映射到仰角（避免 tan 在 ±90° 处发散）
+        # 全方向：θ_elev ∈ [-90°, 90°] 映射到极坐标 0°→360°
         z_max = 20.0
-        z_vals = np.linspace(-z_max, z_max, 721)
-        valid = z_vals != h_ant
-        theta_elev = np.arctan2(z_vals[valid], r0)
+        z_vals = np.linspace(-z_max, z_max, 1441)
+        theta_elev = np.arctan2(z_vals, r0)
 
-        pattern_raw = _antenna_pattern(self._config, z_vals[valid], h_ant, r0)
-        # 极坐标 θ=0° 为天顶(N)，只绘制上半球 (θ_elev ∈ [-90°, 90°])
-        polar_theta = np.pi / 2 - theta_elev  # θ_elev=90°→0, θ_elev=-90°→π
+        pattern_raw = _antenna_pattern(self._config, z_vals, h_ant, r0)
 
-        # 按 polar_theta 升序排序（fill_between 要求 x 单调递增）
-        sort_idx = np.argsort(polar_theta)
-        pt_sorted = polar_theta[sort_idx]
-        p_sorted = pattern_raw[sort_idx]
+        # 极坐标映射：θ_elev=90°(天顶)→0°(N), θ_elev=0°(水平)→90°(E),
+        #              θ_elev=-90°(天底)→180°(S)
+        polar_theta_upper = np.pi / 2 - theta_elev  # 上半球
+
+        # 上半球 + 下半球拼成全圆
+        polar_theta_full = np.concatenate([polar_theta_upper, polar_theta_upper + np.pi])
+        pattern_full = np.concatenate([pattern_raw, pattern_raw])
+
+        # 按角度排序
+        sort_idx = np.argsort(polar_theta_full)
+        pt_sorted = polar_theta_full[sort_idx]
+        p_sorted = pattern_full[sort_idx]
 
         self._ax.fill_between(pt_sorted, 0, p_sorted, alpha=0.3, color="tab:blue")
         self._ax.plot(pt_sorted, p_sorted, "b-", linewidth=1.5)
@@ -244,8 +250,6 @@ class AntennaDialog(QtWidgets.QDialog):
 
         self._ax.set_theta_zero_location("N")
         self._ax.set_theta_direction(-1)
-        self._ax.set_thetamin(0)
-        self._ax.set_thetamax(180)
         self._ax.set_ylim(0, 1.1)
         self._ax.set_yticks([0.25, 0.5, 0.75, 1.0])
         self._ax.set_yticklabels([])

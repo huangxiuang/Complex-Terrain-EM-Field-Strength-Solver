@@ -13,7 +13,10 @@ from numba import njit
 from src.antenna_types import make_initial_field, DEFAULT_ANTENNA_CONFIG
 
 C0 = 2.99792458e8; EPS0 = 8.854187817e-12; N_ATM = 1.0003
-SIGMA_CONDUCTOR = 1e5; TWPE_EPSILON = 1e-3; TWPE_MAX_ITER = 0             # disable TWPE temporarily (performance)
+SIGMA_CONDUCTOR = 1e5
+# ── TWPE (双向抛物方程) — 暂不使用，性能开销大 ──
+# TWPE_EPSILON = 1e-3
+# TWPE_MAX_ITER = 5
 
 N_Z = 2048; N_PHI = 128; DR_FACTOR = 1.0
 Z_PAD_ABOVE = 20.0; R0_FACTOR = 2.0
@@ -52,42 +55,35 @@ class CPESolver2D:
                                 z_grd, z_top, n_grd, c_grd, n_lay, c_lay,
                                 dmft, forward=True)
 
-        # ── TWPE: backward reflections ──
-        u_total = u_fwd.copy()
-        prev_total = u_fwd.copy()
+        # ── TWPE: backward reflections (暂不使用) ──
+        # for iteration in range(TWPE_MAX_ITER):
+        #     sources = self._find_reflection_sources(u_total, r_vals, z_vals, dz,
+        #                                              z_top, c_lay)
+        #     if not sources:
+        #         break
+        #     u_accum = np.zeros_like(u_total)
+        #     for src in sources:
+        #         ri_start = src["r_idx"]
+        #         r_sub = r_vals[:ri_start + 1]
+        #         u_start = src["field"]
+        #         u_bwd = self._pe_march(u_start, r_sub[::-1], -dr, z_vals, dz,
+        #                                 z_grd[:, :ri_start+1][:, ::-1],
+        #                                 z_top[:, :ri_start+1][:, ::-1],
+        #                                 n_grd[:, :ri_start+1][:, ::-1],
+        #                                 c_grd[:, :ri_start+1][:, ::-1],
+        #                                 n_lay[:, :ri_start+1][:, ::-1],
+        #                                 c_lay[:, :ri_start+1][:, ::-1],
+        #                                 dmft, forward=False)
+        #         u_bwd_full = np.zeros_like(u_total)
+        #         u_bwd_full[:ri_start+1] = u_bwd[::-1]
+        #         u_accum += u_bwd_full
+        #     u_total = u_fwd + u_accum
+        #     change = np.linalg.norm(u_total - prev_total) / (np.linalg.norm(prev_total) + 1e-15)
+        #     if change < TWPE_EPSILON:
+        #         break
+        #     prev_total = u_total.copy()
 
-        for iteration in range(TWPE_MAX_ITER):
-            sources = self._find_reflection_sources(u_total, r_vals, z_vals, dz,
-                                                     z_top, c_lay)
-            if not sources:
-                break
-
-            u_accum = np.zeros_like(u_total)
-            for src in sources:
-                # backward PE from obstacle back toward source
-                ri_start = src["r_idx"]
-                r_sub = r_vals[:ri_start + 1]
-                u_start = src["field"]  # (nphi, nz)
-
-                u_bwd = self._pe_march(u_start, r_sub[::-1], -dr, z_vals, dz,
-                                        z_grd[:, :ri_start+1][:, ::-1],
-                                        z_top[:, :ri_start+1][:, ::-1],
-                                        n_grd[:, :ri_start+1][:, ::-1],
-                                        c_grd[:, :ri_start+1][:, ::-1],
-                                        n_lay[:, :ri_start+1][:, ::-1],
-                                        c_lay[:, :ri_start+1][:, ::-1],
-                                        dmft, forward=False)
-                # u_bwd is indexed from obstacle (r_idx) down to r0
-                # Map back to full range indices
-                u_bwd_full = np.zeros_like(u_total)
-                u_bwd_full[:ri_start+1] = u_bwd[::-1]  # reverse back
-                u_accum += u_bwd_full
-
-            u_total = u_fwd + u_accum
-            change = np.linalg.norm(u_total - prev_total) / (np.linalg.norm(prev_total) + 1e-15)
-            if change < TWPE_EPSILON:
-                break
-            prev_total = u_total.copy()
+        u_total = u_fwd  # TWPE 暂不使用，直接取前向结果
 
         E_rx, E_fs = self._extract(u_total, rt, pt, rx[2], r_vals, z_vals)
         L_fs = 20 * np.log10(self.freq/1e6) + 20 * np.log10(rt/1000) + 32.45
