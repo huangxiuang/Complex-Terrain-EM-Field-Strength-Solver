@@ -140,6 +140,26 @@ class FieldPointDialog(QtWidgets.QDialog):
             except Exception:
                 pass
 
+        # 障碍物 — 浅灰填充，不遮挡等高线
+        for name, obj in self.scene.items():
+            if name in ("terrain", "antenna"):
+                continue
+            if obj.get("type") != "mesh":
+                continue
+            extra = obj.get("extra") or {}
+            if extra.get("obstacle_type") != "wall":
+                continue
+            try:
+                b = obj["mesh"].bounds
+                rect = plt.Rectangle(
+                    (b[0], b[2]), b[1]-b[0], b[3]-b[2],
+                    linewidth=0.5, edgecolor="#666666", facecolor="#888888",
+                    alpha=0.12, zorder=1
+                )
+                self._ax.add_patch(rect)
+            except Exception:
+                pass
+
         # Antenna marker
         self._ax.plot(self.tx[0], self.tx[1], "o", color="cyan",
                       markersize=12, markeredgecolor="black",
@@ -408,6 +428,17 @@ class PreciseRxDialog(QtWidgets.QDialog):
                             pass
             except Exception:
                 pass
+
+        # 障碍物 — 浅灰填充
+        for nm, o in self.scene.items():
+            if nm in ("terrain","antenna") or o.get("type")!="mesh": continue
+            extra = o.get("extra") or {}
+            if extra.get("obstacle_type") != "wall": continue
+            try:
+                b=o["mesh"].bounds
+                self._ax1.add_patch(plt.Rectangle((b[0],b[2]),b[1]-b[0],b[3]-b[2],
+                    linewidth=0.5, edgecolor="#666666", facecolor="#888888", alpha=0.12, zorder=1))
+            except Exception: pass
 
         # 测量点
         xys = np.array(self._xy_points) if self._xy_points else np.empty((0,2))
