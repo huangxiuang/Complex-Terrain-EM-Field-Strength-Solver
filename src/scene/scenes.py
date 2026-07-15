@@ -102,34 +102,10 @@ def build_metal_barrier():
 
 # ═══════════════════════════════════════════════════════════════
 #  场景 2：丘陵地带
-# ═══════════════════════════════════════════════════════════════
-
-@register("hills", "丘陵地带", "起伏地形，3 座缓坡山丘，无障碍物，研究地形对传播的影响")
-def build_hills():
-    span, res = 10.0, 60
-    xs = np.linspace(-span, span, res)
-    ys = np.linspace(-span, span, res)
-    X, Y = np.meshgrid(xs, ys)
-
-    Z = (
-        3.0 * np.exp(-((X - 3) ** 2 + (Y - 2) ** 2) / 15) +
-        5.0 * np.exp(-((X + 2) ** 2 + (Y + 4) ** 2) / 20) +
-        4.0 * np.exp(-((X + 5) ** 2 + (Y - 5) ** 2) / 12) +
-        0.02 * X + 0.01 * Y
-    )
-
-    actors = {}
-    actors["terrain"] = _make_terrain(X, Y, Z)
-    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
-    actors["antenna"] = _make_antenna(tz)
-    return actors
-
 
 # ═══════════════════════════════════════════════════════════════
-#  场景 3：经典原始（项目最初默认场景）
-# ═══════════════════════════════════════════════════════════════
-
-@register("classic", "经典原始", "高斯山丘 + 正弦河道 + 沙/草/土分层 + 植被 + 双机 + 鸟 + 树，项目最初默认场景")
+#  场景 2：自然景观
+@register("classic", "自然景观", "高斯山丘地形 + 正弦河道 + 沙/草/土分层 + 河岸植被 + 鸟 + 树")
 def build_classic():
     res_x, res_y = 60, 60
     xs = np.linspace(-10, 10, res_x)
@@ -226,34 +202,6 @@ def build_classic():
         "extra": None, "name": "vegetation",
     }
 
-    # ── 双机 ──
-    def _make_jet():
-        fuselage = pv.Cylinder(center=(0, 0, 0), direction=(1, 0, 0), radius=0.16, height=1.6)
-        nose = pv.Cone(center=(1.05, 0, 0), direction=(1, 0, 0), height=0.5, radius=0.16)
-        wl = pv.Box(bounds=(-0.3, 0.3, -0.9, 0, -0.025, 0.025)); wl.translate((0, -0.45, 0), inplace=True)
-        wr = pv.Box(bounds=(-0.3, 0.3, 0, 0.9, -0.025, 0.025)); wr.translate((0, 0.45, 0), inplace=True)
-        hl = pv.Box(bounds=(-0.125, 0.125, -0.4, 0, -0.015, 0.015)); hl.translate((-0.717, -0.2, 0), inplace=True)
-        hr = pv.Box(bounds=(-0.125, 0.125, 0, 0.4, -0.015, 0.015)); hr.translate((-0.717, 0.2, 0), inplace=True)
-        vt = pv.Box(bounds=(-0.95, -0.8, -0.015, 0.015, 0, 0.35))
-        nozzle = pv.Cylinder(center=(-0.8, 0, 0), direction=(-1, 0, 0), radius=0.14, height=0.03)
-        jet = fuselage.merge([nose, wl, wr, hl, hr, vt, nozzle])
-        jet.scale(1.5, inplace=True)
-        return jet
-
-    jet1 = _make_jet(); jet1.translate((-6, -2, 8), inplace=True)
-    actors["aircraft"] = {
-        "mesh": jet1, "type": "mesh", "visible": True,
-        "params": {"color": "#c4c4c4", "smooth_shading": True, "ambient": 0.35, "diffuse": 0.75, "specular": 0.6, "specular_power": 40},
-        "extra": None, "name": "aircraft",
-    }
-
-    jet2 = _make_jet(); jet2.translate((-6, 3, 7.5), inplace=True)
-    actors["aircraft2"] = {
-        "mesh": jet2, "type": "mesh", "visible": True,
-        "params": {"color": "#cc3333", "smooth_shading": True, "ambient": 0.35, "diffuse": 0.75, "specular": 0.6, "specular_power": 40},
-        "extra": None, "name": "aircraft2",
-    }
-
     # ── 鸟 ──
     body = pv.Sphere(radius=0.12, center=(0, 0, 0))
     head = pv.Sphere(radius=0.06, center=(0.15, 0, 0.04))
@@ -328,65 +276,4 @@ def build_city_block():
         }
 
     actors["antenna"] = _make_antenna(0.0)
-    return actors
-
-
-# ═══════════════════════════════════════════════════════════════
-#  场景 5：复合场景
-# ═══════════════════════════════════════════════════════════════
-
-@register("complex", "复合场景", "起伏地形 + 金属挡板 + 湖泊 + 草地，综合研究多因素耦合")
-def build_complex():
-    span, res = 10.0, 60
-    xs = np.linspace(-span, span, res)
-    ys = np.linspace(-span, span, res)
-    X, Y = np.meshgrid(xs, ys)
-
-    # 起伏地形
-    Z = (
-        4.0 * np.exp(-((X - 3) ** 2 + (Y - 2) ** 2) / 12) +
-        3.0 * np.exp(-((X + 4) ** 2 + (Y + 5) ** 2) / 18) +
-        0.02 * X + 0.01 * Y
-    )
-
-    actors = {}
-    actors["terrain"] = _make_terrain(X, Y, Z)
-
-    # 金属挡板
-    actors["wall"] = _make_wall(z_top=6.0, label="金属铝", eps_r=1.0, sigma=3.8e7)
-
-    # 湖泊（圆形水面，左侧）
-    lake_r = 3.0
-    lake_cx, lake_cy = -4.0, -3.0
-    lake_z = 0.5
-    n_theta, n_r = 40, 20
-    theta_l = np.linspace(0, 2 * np.pi, n_theta)
-    r_l = np.linspace(0, lake_r, n_r)
-    T, R = np.meshgrid(theta_l, r_l)
-    lx = lake_cx + R * np.cos(T)
-    ly = lake_cy + R * np.sin(T)
-    lz = np.full_like(lx, lake_z)
-    lake_grid = pv.StructuredGrid(lx, ly, lz)
-    actors["lake"] = {
-        "mesh": lake_grid, "type": "mesh", "visible": True,
-        "params": {"color": "#1a5276", "opacity": 0.6, "smooth_shading": True},
-        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0}},
-        "name": "lake",
-    }
-
-    # 草地区域（右侧矩形）
-    gxs = np.linspace(4, 9, 20)
-    gys = np.linspace(1, 8, 20)
-    GX, GY = np.meshgrid(gxs, gys)
-    GZ = np.full_like(GX, 0.05)
-    grass_grid = pv.StructuredGrid(GX, GY, GZ)
-    actors["grass_patch"] = {
-        "mesh": grass_grid, "type": "mesh", "visible": True,
-        "params": {"color": "#27ae60", "opacity": 0.5, "smooth_shading": True},
-        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 30.0}},
-        "name": "grass_patch",
-    }
-
-    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
-    actors["antenna"] = _make_antenna(tz)
     return actors
