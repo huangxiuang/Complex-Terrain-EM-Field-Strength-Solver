@@ -12,8 +12,8 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 
 # ── Default material database ─────────────────────────
 DEFAULT_MATERIALS = {
-    "地面":         {"eps_r": 15.0, "sigma": 0.01,   "thickness_cm": 0.0},
-    "湿润地面":     {"eps_r": 25.0, "sigma": 0.1,    "thickness_cm": 0.0},
+    "干燥土壤":     {"eps_r": 15.0, "sigma": 0.01,   "thickness_cm": 0.0},
+    "湿润土壤":     {"eps_r": 25.0, "sigma": 0.1,    "thickness_cm": 0.0},
     "沙地":         {"eps_r": 3.0,  "sigma": 0.001,  "thickness_cm": 20.0},
     "草地":         {"eps_r": 12.0, "sigma": 0.005,  "thickness_cm": 30.0},
     "土地":         {"eps_r": 5.0,  "sigma": 0.005,  "thickness_cm": 60.0},
@@ -32,7 +32,7 @@ LAYER_MATERIAL_MAP = {
     "layer_earth": "土地",
     "layer_water": "水面（淡水）",
     "wall":        "金属铝",
-    "terrain":     "地面",
+    "terrain":     "干燥土壤",
 }
 
 
@@ -117,7 +117,7 @@ class MaterialParamsDialog(QtWidgets.QDialog):
             if mat is None:
                 # Assign default
                 label = LAYER_MATERIAL_MAP.get(name, "地面")
-                mat = dict(DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["地面"]))
+                mat = dict(DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"]))
                 mat["label"] = label
                 if extra is None:
                     obj["extra"] = {}
@@ -230,7 +230,7 @@ class MaterialParamsDialog(QtWidgets.QDialog):
             mat = extra.get("material")
             if mat is None:
                 label = LAYER_MATERIAL_MAP.get(name, "地面")
-                mat = dict(DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["地面"]))
+                mat = dict(DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"]))
                 mat["label"] = label
                 extra["material"] = mat
             elif "thickness_cm" not in mat:
@@ -246,7 +246,7 @@ class MaterialParamsDialog(QtWidgets.QDialog):
             if name == "antenna" or (name.startswith("layer_") and "_clip" not in name):
                 continue
             label = LAYER_MATERIAL_MAP.get(name, "地面")
-            dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["地面"])
+            dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"])
             extra = obj.get("extra", {})
             extra["material"] = {"label": label, **dflt}
             obj["extra"] = extra

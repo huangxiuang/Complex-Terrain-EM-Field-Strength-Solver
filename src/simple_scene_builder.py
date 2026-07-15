@@ -77,7 +77,7 @@ def build_simple_scene():
             "Y": Y,
             "is_dem": False,
             "material": {
-                "label": "地面",
+                "label": "干燥土壤",
                 "eps_r": 15.0,
                 "sigma": 0.01,
             },

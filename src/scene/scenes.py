@@ -74,7 +74,7 @@ def _make_terrain(X, Y, Z, is_dem=False):
         "mesh": grid, "type": "mesh", "visible": True,
         "params": {"color": "#c8b88a", "smooth_shading": True, "opacity": 1.0},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": is_dem,
-                  "material": {"label": "地面", "eps_r": 15.0, "sigma": 0.01}},
+                  "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
         "name": "terrain",
     }
 
@@ -138,7 +138,7 @@ def build_classic():
         "mesh": grid, "type": "mesh", "visible": True,
         "params": {"color": "#f2e2a8", "smooth_shading": True, "opacity": 1.0},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
-                  "material": {"label": "地面", "eps_r": 15.0, "sigma": 0.01}},
+                  "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
         "name": "terrain",
     }
 

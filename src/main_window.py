@@ -458,16 +458,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _load_material_defaults(self):
         from src.material_params_dialog import LAYER_MATERIAL_MAP, DEFAULT_MATERIALS
+        # 纯视觉装饰对象 — 不参与 EM 计算，不分配材料
+        _visual_only = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         for name, obj in self.scene_objects.items():
-            if name == "antenna":
+            if name == "antenna" or name in _visual_only:
                 continue
             extra = obj.get("extra")
             if extra is None:
                 obj["extra"] = {}
                 extra = obj["extra"]
             if extra.get("material") is None:
-                label = LAYER_MATERIAL_MAP.get(name, "地面")
-                dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["地面"])
+                label = LAYER_MATERIAL_MAP.get(name, "干燥土壤")
+                dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"])
                 extra["material"] = {"label": label, **dflt}
 
     def _open_material_params(self):

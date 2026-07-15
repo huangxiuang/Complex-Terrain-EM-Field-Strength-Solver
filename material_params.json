@@ -1,6 +1,6 @@
 {
   "terrain": {
-    "label": "中等干燥地面",
+    "label": "干燥土壤",
     "eps_r": 15.0,
     "sigma": 0.01,
     "thickness_cm": 0.0
@@ -18,7 +18,7 @@
     "thickness_cm": 30.0
   },
   "layer_earth": {
-    "label": "中等干燥地面",
+    "label": "干燥土壤",
     "eps_r": 15.0,
     "sigma": 0.01,
     "thickness_cm": 60.0
