@@ -266,13 +266,13 @@ class LayerManagementDialog(QtWidgets.QDialog):
             triang = tri.Triangulation(pts[:, 0], pts[:, 1])
             z = pts[:, 2]
             z_min, z_max = z.min(), z.max()
-            if z_max - z_min < 1.0:
-                return
-            n_levels = 8 if len(pts) > 3000 else 12
+            n_levels = 6 if z_max - z_min < 1.0 else (8 if len(pts) > 3000 else 12)
             levels = np.linspace(z_min, z_max, n_levels)
             ax.tricontour(triang, z, levels=levels,
                           colors="gray", linewidths=0.4, alpha=0.4,
                           zorder=0)
+            ax.tricontourf(triang, z, levels=levels,
+                           cmap="terrain", alpha=0.12, zorder=0)
         except Exception:
             pass
 

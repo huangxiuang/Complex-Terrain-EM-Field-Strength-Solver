@@ -7,6 +7,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 import matplotlib
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Heiti SC', 'Arial Unicode MS', 'Songti SC']
 plt.rcParams['axes.unicode_minus'] = False
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -110,15 +111,24 @@ class FieldPointDialog(QtWidgets.QDialog):
         self._ax.axhline(0, color="gray", linewidth=0.5)
         self._ax.axvline(0, color="gray", linewidth=0.5)
 
-        # Draw terrain as background (elevation colormap)
+        # Draw terrain elevation contours
         if t is not None:
             try:
                 mesh = t["mesh"]
                 pts = np.asarray(mesh.points)
-                step = max(1, len(pts) // 5000)
-                xs, ys, zs = pts[::step, 0], pts[::step, 1], pts[::step, 2]
-                self._ax.scatter(xs, ys, c=zs, s=1, cmap="terrain",
-                                 alpha=0.3, marker="s", zorder=0)
+                if len(pts) >= 50:
+                    if len(pts) > 8000:
+                        step = max(1, len(pts) // 8000)
+                        pts = pts[::step]
+                    triang = tri.Triangulation(pts[:, 0], pts[:, 1])
+                    z = pts[:, 2]
+                    z_min, z_max = z.min(), z.max()
+                    n_levels = 8 if len(pts) > 2000 else 6
+                    levels = np.linspace(z_min, z_max, n_levels)
+                    self._ax.tricontour(triang, z, levels=levels,
+                                        colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
+                    self._ax.tricontourf(triang, z, levels=levels,
+                                         cmap="terrain", alpha=0.15, zorder=0)
             except Exception:
                 pass
 
@@ -380,6 +390,28 @@ class PreciseRxDialog(QtWidgets.QDialog):
         self._ax1.set_xlim(-lim, lim); self._ax1.set_ylim(-lim, lim)
         self._ax1.set_aspect("equal"); self._ax1.grid(True, alpha=0.3)
         self._ax1.plot(self.tx[0], self.tx[1], "o", color="cyan", markersize=10)
+
+        # 地形等高线
+        if t is not None:
+            try:
+                mesh = t["mesh"]
+                pts = np.asarray(mesh.points)
+                if len(pts) >= 50:
+                    step = max(1, len(pts) // 8000)
+                    sp = pts[::step]
+                    triang = tri.Triangulation(sp[:, 0], sp[:, 1])
+                    z_vals = sp[:, 2]
+                    zmin, zmax = z_vals.min(), z_vals.max()
+                    nlv = 8 if len(sp) > 2000 else 6
+                    levels = np.linspace(zmin, zmax, nlv)
+                    self._ax1.tricontour(triang, z_vals, levels=levels,
+                                         colors="gray", linewidths=0.4, alpha=0.35, zorder=0)
+                    self._ax1.tricontourf(triang, z_vals, levels=levels,
+                                          cmap="terrain", alpha=0.12, zorder=0)
+            except Exception:
+                pass
+
+        # 障碍物
         for nm, o in self.scene.items():
             if nm in ("terrain","antenna") or o.get("type")!="mesh": continue
             b=o["mesh"].bounds
