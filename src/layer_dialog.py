@@ -14,12 +14,12 @@ import matplotlib.tri as tri
 
 _HAS_MPL = True
 try:
-import matplotlib
-matplotlib.use("Qt5Agg")
-import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Heiti SC', 'Arial Unicode MS', 'Songti SC']
-plt.rcParams['axes.unicode_minus'] = False
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+    import matplotlib
+    matplotlib.use("Qt5Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Heiti SC', 'Arial Unicode MS', 'Songti SC']
+    plt.rcParams['axes.unicode_minus'] = False
+    from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
     from matplotlib.figure import Figure
     from matplotlib.path import Path
 except ImportError:
