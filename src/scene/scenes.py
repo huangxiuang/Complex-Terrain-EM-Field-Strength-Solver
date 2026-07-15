@@ -142,36 +142,6 @@ def build_classic():
         "name": "terrain",
     }
 
-    # 高程阈值土壤层
-    surface = grid.extract_surface()
-    z_min, z_max = float(Z.min()), float(Z.max())
-    rng = max(z_max - z_min, 0.01)
-    s_max = z_min + rng * 0.20
-    g_max = z_min + rng * 0.45
-    eps = 0.02
-    sand = surface.threshold([z_min - 1, s_max + eps], scalars="elevation", preference="point")
-    grass = surface.threshold([s_max - eps, g_max + eps], scalars="elevation", preference="point")
-    earth = surface.threshold([g_max - eps, z_max + 1], scalars="elevation", preference="point")
-
-    actors["layer_sand"] = {
-        "mesh": sand, "type": "mesh", "visible": False,
-        "params": {"scalars": "elevation", "cmap": ["#f5e6b8", "#e8c76a", "#d4a843"],
-                   "clim": [z_min, s_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
-        "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 20.0}}, "name": "layer_sand",
-    }
-    actors["layer_grass"] = {
-        "mesh": grass, "type": "mesh", "visible": False,
-        "params": {"scalars": "elevation", "cmap": ["#a8d5a2", "#5a9e4c", "#2d6b28"],
-                   "clim": [s_max, g_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
-        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 30.0}}, "name": "layer_grass",
-    }
-    actors["layer_earth"] = {
-        "mesh": earth, "type": "mesh", "visible": False,
-        "params": {"scalars": "elevation", "cmap": ["#d4b896", "#8b6f47", "#5c4033"],
-                   "clim": [g_max, z_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
-        "extra": {"material": {"label": "中等干燥地面", "eps_r": 15.0, "sigma": 0.01, "thickness_cm": 60.0}}, "name": "layer_earth",
-    }
-
     # ── 河道水面 ──
     n_y, n_w = 100, 12
     river_y = np.linspace(-10, 10, n_y)
