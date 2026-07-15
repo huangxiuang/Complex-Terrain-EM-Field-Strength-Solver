@@ -8,6 +8,7 @@ Multi-bounce iteration with convergence threshold ε (thesis Eq. 5-4).
 
 import numpy as np
 from scipy.special import hankel1 as _hankel1
+from numba import njit
 
 C0 = 2.99792458e8; EPS0 = 8.854187817e-12; N_ATM = 1.0003
 SIGMA_CONDUCTOR = 1e5; TWPE_EPSILON = 1e-3; TWPE_MAX_ITER = 0             # disable TWPE temporarily (performance)
@@ -27,7 +28,7 @@ def is_conductor(sigma):
 class CPESolver2D:
     def __init__(self, frequency, antenna_pos, scene_objects,
                  n_atm=N_ATM, n_z=N_Z, n_phi=N_PHI, dr_factor=DR_FACTOR):
-        self.freq = float(frequency); self.antenna = np.asarray(antenna_pos, dtype=np.float64)
+        self.freq = float(frequency); self.antenna = np.asarray(antenna_pos, dtype=np.float32)
         self.scene = scene_objects; self.n_atm = n_atm; self.n_z = n_z; self.n_phi = n_phi
         self.dr_factor = dr_factor
         self.k0 = 2.0 * np.pi * self.freq / C0; self.wavelength = C0 / self.freq
@@ -35,7 +36,7 @@ class CPESolver2D:
         self.m_vals = np.fft.fftfreq(n_phi, 1.0 / n_phi).astype(int)
 
     def compute(self, rx_pos):
-        rx = np.asarray(rx_pos, dtype=np.float64)
+        rx = np.asarray(rx_pos, dtype=np.float32)
         rt, pt = self._cart_to_cyl(rx)
         r_vals, dr, nr = self._build_range_grid(rt)
         z_vals, dz = self._build_height_grid(rx[2])
@@ -110,7 +111,7 @@ class CPESolver2D:
     def _init_field(self, z_vals):
         sigma_z = 2.0; env = np.exp(-0.5*((z_vals-self.antenna[2])/sigma_z)**2)
         if env.max()>0: env/=env.max()
-        u=np.zeros((self.n_phi,self.n_z),dtype=np.complex128); u[:,:]=env[np.newaxis,:]; return u
+        u=np.zeros((self.n_phi,self.n_z),dtype=np.complex64); u[:,:]=env[np.newaxis,:]; return u
 
     # ── DMFT ──
     def _build_dmft(self, cond_map):
@@ -144,7 +145,7 @@ class CPESolver2D:
             taper[nz-n_taper+k] = 0.5+0.5*np.cos(8.0*np.pi*k/nz)
         g_idx = np.clip(((z_grd)/dz).astype(int), 0, nz)  # ground surface
         t_idx = np.clip(((z_top)/dz).astype(int), 0, nz)  # top of clip layer
-        u_full = np.zeros((nr, nphi, nz), dtype=np.complex128); u_full[0] = u
+        u_full = np.zeros((nr, nphi, nz), dtype=np.complex64); u_full[0] = u
 
         for i in range(1, nr):
             rp, rc = r_vals[i-1], r_vals[i]
@@ -195,7 +196,7 @@ class CPESolver2D:
                 ti = int(zt[j] / dz) if zt[j] < len(z_vals)*dz else 0
                 if ti <= 0: continue
                 if ri not in src_by_r:
-                    src_by_r[ri] = np.zeros((self.n_phi, self.n_z), dtype=np.complex128)
+                    src_by_r[ri] = np.zeros((self.n_phi, self.n_z), dtype=np.complex64)
                 src_by_r[ri][pi, :ti] = -u_total[ri, pi, :ti]
         return [{"r_idx": ri, "field": ub} for ri, ub in src_by_r.items()]
 
@@ -208,12 +209,12 @@ class CPESolver2D:
     # ── Terrain + materials ──
     def _extract_material_maps(self, nr, r_vals):
         # z_ground = base terrain surface; z_top = top of any clip layer
-        zg=np.zeros((self.n_phi,nr)); zt=np.zeros((self.n_phi,nr))
+        zg=np.zeros((self.n_phi,nr),dtype=np.float32); zt=np.zeros((self.n_phi,nr),dtype=np.float32)
         # ng/cm = ground material below surface
-        ng=np.full((self.n_phi,nr),self.n_atm,dtype=np.complex128)
+        ng=np.full((self.n_phi,nr),self.n_atm,dtype=np.complex64)
         cg=np.zeros((self.n_phi,nr),dtype=bool)
         # nl/cl = clip layer material (on top of ground), or same as ground if no clip
-        nl=np.full((self.n_phi,nr),self.n_atm,dtype=np.complex128)
+        nl=np.full((self.n_phi,nr),self.n_atm,dtype=np.complex64)
         cl=np.zeros((self.n_phi,nr),dtype=bool)
         for pi,phi in enumerate(self.phi_vals):
             c,s=np.cos(phi),np.sin(phi); xp=self.antenna[0]+r_vals*c; yp=self.antenna[1]+r_vals*s
@@ -276,6 +277,7 @@ def _clip_counter(name):
     return 0
 
 
+@njit
 def _point_in_poly(x, y, poly):
     """Ray-casting point-in-polygon test."""
     n = len(poly); inside = False
@@ -297,20 +299,49 @@ def _get_ground_mat(scene):
 def _resolve_mat(freq,mat):
     return material_n(freq,mat["eps_r"],mat["sigma"]),is_conductor(mat["sigma"])
 
-def _sample_terrain(mesh,xp,yp):
-    pts=np.asarray(mesh.points)
-    if pts.shape[1]<3: return np.zeros_like(xp)
+def _sample_terrain(mesh, xp, yp):
+    pts = np.asarray(mesh.points, dtype=np.float32)
+    if pts.shape[1] < 3:
+        return np.zeros_like(xp, dtype=np.float32)
     try:
-        dims=mesh.dimensions; nx,ny=dims[0],dims[1]
-        xs=pts[:nx,0]; ys=pts[::nx,1][:ny]; z2d=pts[:,2].reshape((ny,nx),order="F")
-    except:
-        r=np.zeros_like(xp)
-        for i,(x,y) in enumerate(zip(xp,yp)): r[i]=pts[np.argmin((pts[:,0]-x)**2+(pts[:,1]-y)**2),2]
-        return r
-    r=np.zeros_like(xp)
-    for i,(x,y) in enumerate(zip(xp,yp)):
-        ix=max(0,min(np.searchsorted(xs,x)-1,nx-2)); iy=max(0,min(np.searchsorted(ys,y)-1,ny-2))
-        x1,x2=xs[ix],xs[ix+1]; y1,y2=ys[iy],ys[iy+1]
-        dx=(x-x1)/(x2-x1) if x2!=x1 else 0.5; dy=(y-y1)/(y2-y1) if y2!=y1 else 0.5
-        r[i]=(z2d[iy,ix]*(1-dx)*(1-dy)+z2d[iy,ix+1]*dx*(1-dy)+z2d[iy+1,ix]*(1-dx)*dy+z2d[iy+1,ix+1]*dx*dy)
+        dims = mesh.dimensions
+        nx, ny = dims[0], dims[1]
+        xs = pts[:nx, 0]
+        ys = pts[::nx, 1][:ny]
+        z2d = np.ascontiguousarray(pts[:, 2].reshape((ny, nx), order="F").astype(np.float32))
+        return _bilinear_interp_terrain(xs, ys, z2d, np.asarray(xp, dtype=np.float32), np.asarray(yp, dtype=np.float32))
+    except Exception:
+        return _nearest_terrain(pts, np.asarray(xp, dtype=np.float32), np.asarray(yp, dtype=np.float32))
+
+
+@njit
+def _bilinear_interp_terrain(xs, ys, z2d, xp, yp):
+    nx = z2d.shape[1]; ny = z2d.shape[0]
+    r = np.empty(len(xp), dtype=np.float32)
+    for i in range(len(xp)):
+        x, y = xp[i], yp[i]
+        ix = max(0, min(np.searchsorted(xs, x) - 1, nx - 2))
+        iy = max(0, min(np.searchsorted(ys, y) - 1, ny - 2))
+        x1, x2 = xs[ix], xs[ix + 1]
+        y1, y2 = ys[iy], ys[iy + 1]
+        dx = (x - x1) / (x2 - x1) if x2 != x1 else 0.5
+        dy = (y - y1) / (y2 - y1) if y2 != y1 else 0.5
+        r[i] = (z2d[iy, ix] * (1.0 - dx) * (1.0 - dy) +
+                z2d[iy, ix + 1] * dx * (1.0 - dy) +
+                z2d[iy + 1, ix] * (1.0 - dx) * dy +
+                z2d[iy + 1, ix + 1] * dx * dy)
+    return r
+
+
+@njit
+def _nearest_terrain(pts, xp, yp):
+    r = np.empty(len(xp), dtype=np.float32)
+    for i in range(len(xp)):
+        x, y = xp[i], yp[i]
+        best = 1e30; best_z = 0.0
+        for j in range(len(pts)):
+            d = (pts[j, 0] - x) * (pts[j, 0] - x) + (pts[j, 1] - y) * (pts[j, 1] - y)
+            if d < best:
+                best = d; best_z = pts[j, 2]
+        r[i] = best_z
     return r
