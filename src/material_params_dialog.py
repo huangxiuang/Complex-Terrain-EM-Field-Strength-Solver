@@ -221,8 +221,9 @@ class MaterialParamsDialog(QtWidgets.QDialog):
 
     def _load_defaults(self):
         """Fill missing materials with defaults (safe for missing user input)."""
+        _vis = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         for name, obj in self._scene.items():
-            if name == "antenna" or (name.startswith("layer_") and "_clip" not in name):
+            if name == "antenna" or name in _vis or (name.startswith("layer_") and "_clip" not in name):
                 continue
             extra = obj.get("extra")
             if extra is None:
