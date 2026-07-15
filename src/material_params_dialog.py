@@ -105,6 +105,25 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         omega = 2.0 * np.pi * self._freq
         eps0 = 8.854187817e-12
 
+        # 首行固定：空气（背景介质）
+        air = DEFAULT_MATERIALS["空气"]
+        r0 = self._table.rowCount()
+        self._table.insertRow(r0)
+        self._table.setItem(r0, 0, QtWidgets.QTableWidgetItem("（背景）"))
+        self._table.setItem(r0, 1, QtWidgets.QTableWidgetItem("空气"))
+        for col, val in [(2, air["eps_r"]), (3, air["sigma"]), (4, air["thickness_cm"])]:
+            item = QtWidgets.QTableWidgetItem(str(val))
+            item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
+            self._table.setItem(r0, col, item)
+        n_air = np.sqrt(air["eps_r"] - 1j * air["sigma"] / (omega * eps0 + 1e-30))
+        for col, val in [(5, f"{n_air.real:.4f}"), (6, f"{n_air.imag:.4e}")]:
+            item = QtWidgets.QTableWidgetItem(val)
+            item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
+            self._table.setItem(r0, col, item)
+        # 浅蓝背景标记
+        for col in range(7):
+            self._table.item(r0, col).setBackground(QtGui.QColor("#e3f2fd"))
+
         _visual = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         for name, obj in self._scene.items():
             if name in ("antenna",) or name in _visual:
