@@ -32,6 +32,8 @@ WALL_Z_BASE       = 0.0         # wall bottom z
 WALL_Z_TOP        = 5.0         # wall top z
 WALL_THICKNESS    = 0.1         # wall thickness in x
 
+from src.antenna_types import DEFAULT_ANTENNA_CONFIG
+
 ANTENNA_POS       = (-5.0, 0.0, 6.0)   # (x, y, z) world coords
 ANTENNA_RADIUS    = 0.3                # visual marker size
 
@@ -159,6 +161,7 @@ def build_simple_scene():
         "extra": {
             "position": ANTENNA_POS,
             "is_source": True,
+            "antenna_config": dict(DEFAULT_ANTENNA_CONFIG),
         },
         "name": "antenna",
     }

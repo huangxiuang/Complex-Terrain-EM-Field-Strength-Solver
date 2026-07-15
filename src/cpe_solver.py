@@ -10,6 +10,8 @@ import numpy as np
 from scipy.special import hankel1 as _hankel1
 from numba import njit
 
+from src.antenna_types import make_initial_field, DEFAULT_ANTENNA_CONFIG
+
 C0 = 2.99792458e8; EPS0 = 8.854187817e-12; N_ATM = 1.0003
 SIGMA_CONDUCTOR = 1e5; TWPE_EPSILON = 1e-3; TWPE_MAX_ITER = 0             # disable TWPE temporarily (performance)
 
@@ -109,9 +111,11 @@ class CPESolver2D:
         dz = z_max / (self.n_z - 1); return np.linspace(0, z_max, self.n_z), dz
 
     def _init_field(self, z_vals):
-        sigma_z = 2.0; env = np.exp(-0.5*((z_vals-self.antenna[2])/sigma_z)**2)
-        if env.max()>0: env/=env.max()
-        u=np.zeros((self.n_phi,self.n_z),dtype=np.complex64); u[:,:]=env[np.newaxis,:]; return u
+        ant_obj = self.scene.get("antenna", {})
+        ant_config = ant_obj.get("extra", {}).get("antenna_config", dict(DEFAULT_ANTENNA_CONFIG))
+        h_ant = self.antenna[2]
+        r0 = R0_FACTOR * self.wavelength
+        return make_initial_field(ant_config, z_vals, self.n_phi, h_ant, self.k0, r0)
 
     # ── DMFT ──
     def _build_dmft(self, cond_map):

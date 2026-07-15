@@ -18,6 +18,7 @@ from src.cpe_solver import CPESolver2D
 from src.field_dialog import FieldPointDialog, FieldResultDialog, PreciseRxDialog
 from src.layer_dialog import LayerManagementDialog, ClipManagerDialog
 from src.material_params_dialog import MaterialParamsDialog, LAYER_MATERIAL_MAP
+from src.antenna_dialog import AntennaDialog
 
 import matplotlib.path as mpath
 
@@ -109,6 +110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # ── Parameters menu ──
         menu_params = mb.addMenu("参数 (&P)")
         menu_params.addAction("材料参数设置…", self._open_material_params)
+        menu_params.addAction("天线设置…", self._open_antenna_dialog)
         menu_tools = mb.addMenu("工具 (&T)")
         action_rx = menu_tools.addAction("添加测量点… (&A)")
         action_rx.setShortcut("Ctrl+A")
@@ -408,6 +410,22 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg = MaterialParamsDialog(self, self.scene_objects)
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
             self.statusBar().showMessage("材料参数已更新")
+
+    def _open_antenna_dialog(self):
+        ant = self.scene_objects.get("antenna")
+        if ant is None:
+            QtWidgets.QMessageBox.warning(self, "错误", "场景中未找到天线！")
+            return
+        config = ant.get("extra", {}).get("antenna_config", {})
+        dlg = AntennaDialog(self, config)
+        if dlg.exec_() == QtWidgets.QDialog.Accepted:
+            new_config = dlg.get_config()
+            if "extra" not in ant:
+                ant["extra"] = {}
+            ant["extra"]["antenna_config"] = new_config
+            self.statusBar().showMessage(
+                f"天线已更新：{new_config['type']} @ {new_config['frequency']/1e9:.1f} GHz"
+            )
 
 
 class RxManageDialog(QtWidgets.QDialog):
