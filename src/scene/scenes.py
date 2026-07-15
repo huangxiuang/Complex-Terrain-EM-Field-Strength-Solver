@@ -137,17 +137,18 @@ def build_valley_river():
     actors = {}
     actors["terrain"] = _make_terrain(X, Y, Z)
 
-    # 河流：山谷底部的水面
-    water_z = 1.8
+    # 河流：贴在山谷底部地形上
     river_mask = (X > -2.5) & (X < 2.5)
     water_X = X[river_mask].reshape(-1)
     water_Y = Y[river_mask].reshape(-1)
+    water_Z_base = Z[river_mask].reshape(-1)  # 取实际地形高度
     nx = len(np.unique(water_X))
     ny = len(np.unique(water_Y))
     if nx > 1 and ny > 1:
         wx = water_X.reshape(ny, nx)
         wy = water_Y.reshape(ny, nx)
-        wz = np.full_like(wx, water_z)
+        wz_base = water_Z_base.reshape(ny, nx)
+        wz = wz_base + 0.15  # 水面略高于地形
         water_grid = pv.StructuredGrid(wx, wy, wz)
         actors["river"] = {
             "mesh": water_grid, "type": "mesh", "visible": True,
