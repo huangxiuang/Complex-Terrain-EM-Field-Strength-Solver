@@ -500,15 +500,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _rebuild_antenna_marker(self, new_pos):
         import pyvista as pv
+        from src.physics.terrain import sample_terrain
         radius = 0.3
         sphere = pv.Sphere(radius=radius, center=new_pos)
-        pole = pv.Cylinder(
-            center=(new_pos[0], new_pos[1], new_pos[2] / 2),
-            direction=(0, 0, 1),
-            radius=radius * 0.3,
-            height=new_pos[2],
-        )
-        ant_mesh = sphere.merge([pole])
+        # 杆子从地面到天线
+        terrain = self.scene_objects.get("terrain")
+        if terrain:
+            tz = float(sample_terrain(terrain["mesh"],
+                      np.array([new_pos[0]]), np.array([new_pos[1]]))[0])
+        else:
+            tz = 0.0
+        tz = max(tz, 0.0)
+        h = new_pos[2]
+        if h - tz > 0.3:
+            pole = pv.Cylinder(
+                center=(new_pos[0], new_pos[1], (tz + h) / 2),
+                direction=(0, 0, 1), radius=radius * 0.3, height=h - tz,
+            )
+            ant_mesh = sphere.merge([pole])
+        else:
+            ant_mesh = sphere
         self.scene_objects["antenna"]["mesh"] = ant_mesh
         # 替换 3D 场景中的 actor
         old_actor = self.plotter_actors.pop("antenna", None)

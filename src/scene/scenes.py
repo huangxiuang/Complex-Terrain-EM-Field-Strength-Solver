@@ -5,6 +5,7 @@
 import numpy as np
 import pyvista as pv
 from src.antenna_types import DEFAULT_ANTENNA_CONFIG
+from src.physics.terrain import sample_terrain
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -29,11 +30,17 @@ ANTENNA_POS = (-5.0, 0.0, 6.0)
 ANTENNA_RADIUS = 0.3
 
 
-def _make_antenna():
+def _make_antenna(terrain_z=0.0):
+    """天线标记：球体 + 杆子从地面到天线高度。"""
+    h = ANTENNA_POS[2]
+    pole_base = max(terrain_z, 0.0)
+    if h - pole_base < 0.3:
+        pole_base = h - 0.3  # 至少 30cm 杆子
+    
     sphere = pv.Sphere(radius=ANTENNA_RADIUS, center=ANTENNA_POS)
     pole = pv.Cylinder(
-        center=(ANTENNA_POS[0], ANTENNA_POS[1], ANTENNA_POS[2] / 2),
-        direction=(0, 0, 1), radius=ANTENNA_RADIUS * 0.3, height=ANTENNA_POS[2],
+        center=(ANTENNA_POS[0], ANTENNA_POS[1], (pole_base + h) / 2),
+        direction=(0, 0, 1), radius=ANTENNA_RADIUS * 0.3, height=h - pole_base,
     )
     return {
         "mesh": sphere.merge([pole]), "type": "mesh", "visible": True,
@@ -88,7 +95,8 @@ def build_metal_barrier():
     actors = {}
     actors["terrain"] = _make_terrain(X, Y, Z)
     actors["wall"] = _make_wall()
-    actors["antenna"] = _make_antenna()
+    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
+    actors["antenna"] = _make_antenna(tz)
     return actors
 
 
@@ -112,7 +120,8 @@ def build_hills():
 
     actors = {}
     actors["terrain"] = _make_terrain(X, Y, Z)
-    actors["antenna"] = _make_antenna()
+    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
+    actors["antenna"] = _make_antenna(tz)
     return actors
 
 
@@ -127,12 +136,11 @@ def build_valley_river():
     ys = np.linspace(-span, span, res)
     X, Y = np.meshgrid(xs, ys)
 
-    # 山谷：沿 Y 轴的 V 形槽
-    valley = 6.0 * np.exp(-X ** 2 / 8) * (1 + 0.3 * np.sin(Y * 0.5))
-    # 两侧山脊
-    ridges = (3.0 * np.exp(-((X + 6) ** 2) / 12) +
-              3.0 * np.exp(-((X - 6) ** 2) / 12))
-    Z = ridges - valley + 2.0
+    # 浅山谷 + 两侧缓坡
+    valley = 3.0 * np.exp(-X ** 2 / 5) * (1 + 0.2 * np.sin(Y * 0.5))
+    ridges = (2.0 * np.exp(-((X + 6) ** 2) / 15) +
+              2.0 * np.exp(-((X - 6) ** 2) / 15))
+    Z = ridges - valley + 3.0
 
     actors = {}
     actors["terrain"] = _make_terrain(X, Y, Z)
@@ -157,7 +165,8 @@ def build_valley_river():
             "name": "river",
         }
 
-    actors["antenna"] = _make_antenna()
+    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
+    actors["antenna"] = _make_antenna(tz)
     return actors
 
 
@@ -198,7 +207,7 @@ def build_city_block():
             "name": b["name"],
         }
 
-    actors["antenna"] = _make_antenna()
+    actors["antenna"] = _make_antenna(0.0)
     return actors
 
 
@@ -258,5 +267,6 @@ def build_complex():
         "name": "grass_patch",
     }
 
-    actors["antenna"] = _make_antenna()
+    tz = float(Z[np.argmin(np.abs(xs - ANTENNA_POS[0])), np.argmin(np.abs(ys - ANTENNA_POS[1]))])
+    actors["antenna"] = _make_antenna(tz)
     return actors
