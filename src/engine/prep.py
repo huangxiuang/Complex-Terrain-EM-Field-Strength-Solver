@@ -107,10 +107,9 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
             wb = msh.bounds
             wm = get_material(o)
             if wm is not None:
-                wnc, _ = resolve_material(freq, wm)
+                wnc, wcond = resolve_material(freq, wm)
             else:
-                wnc = np.complex64(n_atm)
-            wcond = True  # obstacle_type=wall always opaque, regardless of material σ
+                wnc, wcond = np.complex64(n_atm), True
             inside = ((xp >= wb[0]) & (xp <= wb[1]) &
                       (yp >= wb[2]) & (yp <= wb[3]))
             if not inside.any():

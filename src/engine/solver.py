@@ -92,12 +92,12 @@ def _pe_march(u, r_vals, dr, z_vals, dz,
             if c_grd[pi, i]:
                 u_step[pi, :gi] = 0.0 + 0.0j
             else:
-                u_step[pi, :gi] *= np.exp(1j * k0 * (n_grd[pi, i] - n_atm) * abs(dr))
+                u_step[pi, :gi] *= np.exp(1j * k0 * (np.conj(n_grd[pi, i]) - n_atm) * abs(dr))
             if ti > gi:
                 if c_lay[pi, i]:
                     u_step[pi, gi:ti] = 0.0 + 0.0j
                 else:
-                    u_step[pi, gi:ti] *= np.exp(1j * k0 * (n_lay[pi, i] - n_atm) * abs(dr))
+                    u_step[pi, gi:ti] *= np.exp(1j * k0 * (np.conj(n_lay[pi, i]) - n_atm) * abs(dr))
 
         u_step[:, :] *= taper[np.newaxis, :]
         u_full[i] = u_step
