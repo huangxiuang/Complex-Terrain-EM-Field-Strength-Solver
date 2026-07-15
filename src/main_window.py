@@ -19,6 +19,7 @@ from src.field_dialog import FieldPointDialog, FieldResultDialog, PreciseRxDialo
 from src.layer_dialog import LayerManagementDialog, ClipManagerDialog
 from src.material_params_dialog import MaterialParamsDialog, LAYER_MATERIAL_MAP
 from src.antenna_dialog import AntennaDialog
+from src.sweep_dialog import SweepDialog
 
 import matplotlib.path as mpath
 
@@ -117,6 +118,10 @@ class MainWindow(QtWidgets.QMainWindow):
         action_rx.triggered.connect(self._on_add_rx_points)
         action_precise = menu_tools.addAction("精准添加测量点…")
         action_precise.triggered.connect(self._on_precise_rx)
+        menu_tools.addSeparator()
+        action_sweep = menu_tools.addAction("扫频模式… (&S)")
+        action_sweep.setShortcut("Ctrl+S")
+        action_sweep.triggered.connect(self._on_sweep)
         menu_tools.addSeparator()
         action_mgr = menu_tools.addAction("管理测量点…")
         action_mgr.triggered.connect(self._on_manage_rx)
@@ -220,6 +225,17 @@ class MainWindow(QtWidgets.QMainWindow):
         n = len(self._pending_rx_points)
         self._btn_solve.setEnabled(n > 0)
         self._rx_count_label.setText(f"待求解: {n} 个点" if n else "未添加测量点")
+
+    def _on_sweep(self):
+        if not self._pending_rx_points:
+            QtWidgets.QMessageBox.warning(self, "提示", "请先添加测量点")
+            return
+        ant_obj = self.scene_objects.get("antenna")
+        if ant_obj is None:
+            return
+        tx = tuple(ant_obj["extra"]["position"])
+        dlg = SweepDialog(self, self.scene_objects, tx, self._pending_rx_points)
+        dlg.exec_()
 
     def _on_solve(self):
         if not self._pending_rx_points:
