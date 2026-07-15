@@ -12,6 +12,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 
 # ── Default material database ─────────────────────────
 DEFAULT_MATERIALS = {
+    "空气":         {"eps_r": 1.0006, "sigma": 0.0,    "thickness_cm": 0.0},
     "干燥土壤":     {"eps_r": 15.0, "sigma": 0.01,   "thickness_cm": 0.0},
     "湿润土壤":     {"eps_r": 25.0, "sigma": 0.1,    "thickness_cm": 0.0},
     "沙地":         {"eps_r": 3.0,  "sigma": 0.001,  "thickness_cm": 20.0},
