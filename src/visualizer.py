@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['PingFang SC', 'Heiti SC', 'Arial Unicode MS', 'Songti SC']
+plt.rcParams['axes.unicode_minus'] = False
 from matplotlib import ticker
 
 
