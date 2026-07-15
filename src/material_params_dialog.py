@@ -12,16 +12,16 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 
 # ── Default material database ─────────────────────────
 DEFAULT_MATERIALS = {
-    "地面": {"eps_r": 15.0, "sigma": 0.01,   "thickness_cm": 0.0},
+    "地面":         {"eps_r": 15.0, "sigma": 0.01,   "thickness_cm": 0.0},
     "湿润地面":     {"eps_r": 25.0, "sigma": 0.1,    "thickness_cm": 0.0},
-    "沙地":         {"eps_r": 3.0,  "sigma": 0.001,  "thickness_cm": 0.5},
-    "草地":         {"eps_r": 12.0, "sigma": 0.005,  "thickness_cm": 1.0},
-    "土地":         {"eps_r": 5.0,  "sigma": 0.005,  "thickness_cm": 2.0},
-    "水面（淡水）":  {"eps_r": 80.0, "sigma": 0.01,   "thickness_cm": 0.5},
-    "水面（海水）":  {"eps_r": 80.0, "sigma": 4.0,    "thickness_cm": 0.5},
+    "沙地":         {"eps_r": 3.0,  "sigma": 0.001,  "thickness_cm": 20.0},
+    "草地":         {"eps_r": 12.0, "sigma": 0.005,  "thickness_cm": 30.0},
+    "土地":         {"eps_r": 5.0,  "sigma": 0.005,  "thickness_cm": 60.0},
+    "水面（淡水）":  {"eps_r": 80.0, "sigma": 0.01,   "thickness_cm": 100.0},
+    "水面（海水）":  {"eps_r": 80.0, "sigma": 4.0,    "thickness_cm": 100.0},
     "混凝土":       {"eps_r": 6.0,  "sigma": 0.02,   "thickness_cm": 20.0},
-    "玻璃":         {"eps_r": 7.0,  "sigma": 1e-6,   "thickness_cm": 1.0},
-    "木材":         {"eps_r": 2.0,  "sigma": 1e-4,   "thickness_cm": 5.0},
+    "玻璃":         {"eps_r": 7.0,  "sigma": 1e-6,   "thickness_cm": 1.5},
+    "木材":         {"eps_r": 2.0,  "sigma": 1e-4,   "thickness_cm": 8.0},
     "金属铝":       {"eps_r": 1.0,  "sigma": 3.8e7,  "thickness_cm": 0.0},
 }
 

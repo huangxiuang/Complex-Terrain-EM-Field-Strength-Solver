@@ -157,19 +157,19 @@ def build_classic():
         "mesh": sand, "type": "mesh", "visible": False,
         "params": {"scalars": "elevation", "cmap": ["#f5e6b8", "#e8c76a", "#d4a843"],
                    "clim": [z_min, s_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
-        "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 5.0}}, "name": "layer_sand",
+        "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 20.0}}, "name": "layer_sand",
     }
     actors["layer_grass"] = {
         "mesh": grass, "type": "mesh", "visible": False,
         "params": {"scalars": "elevation", "cmap": ["#a8d5a2", "#5a9e4c", "#2d6b28"],
                    "clim": [s_max, g_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
-        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 10.0}}, "name": "layer_grass",
+        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 30.0}}, "name": "layer_grass",
     }
     actors["layer_earth"] = {
         "mesh": earth, "type": "mesh", "visible": False,
         "params": {"scalars": "elevation", "cmap": ["#d4b896", "#8b6f47", "#5c4033"],
                    "clim": [g_max, z_max], "smooth_shading": True, "opacity": 1.0, "show_scalar_bar": False},
-        "extra": {"material": {"label": "中等干燥地面", "eps_r": 15.0, "sigma": 0.01, "thickness_cm": 20.0}}, "name": "layer_earth",
+        "extra": {"material": {"label": "中等干燥地面", "eps_r": 15.0, "sigma": 0.01, "thickness_cm": 60.0}}, "name": "layer_earth",
     }
 
     # ── 河道水面 ──
@@ -183,7 +183,7 @@ def build_classic():
     actors["river"] = {
         "mesh": river_grid, "type": "mesh", "visible": True,
         "params": {"color": "#1488cc", "opacity": 0.88, "smooth_shading": True},
-        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0},
+        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 100.0},
                   "Ry": Ry, "phase": 0.0},
         "name": "river",
     }
