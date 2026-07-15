@@ -75,7 +75,7 @@ class ScenePropsDialog(QtWidgets.QDialog):
         _vis = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         n_em = sum(1 for k in scene_objects if k not in _vis and k != "antenna")
         obstacles = [k for k, v in scene_objects.items()
-                     if v.get("extra", {}).get("obstacle_type") == "wall"]
+                     if (v.get("extra") or {}).get("obstacle_type") == "wall"]
         layers = [k for k in scene_objects if k.startswith("layer_") or
                   k in ("river", "lake", "grass_patch")]
         terrain = scene_objects.get("terrain")
