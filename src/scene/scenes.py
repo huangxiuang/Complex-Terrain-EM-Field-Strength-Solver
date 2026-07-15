@@ -153,7 +153,7 @@ def build_valley_river():
         actors["river"] = {
             "mesh": water_grid, "type": "mesh", "visible": True,
             "params": {"color": "#2980b9", "opacity": 0.7, "smooth_shading": True},
-            "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 0.5}},
+            "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0}},
             "name": "river",
         }
 
@@ -180,7 +180,7 @@ def build_city_block():
     buildings = [
         {"x": 0, "y": -4, "w": 1.5, "d": 2.0, "h": 8.0, "name": "building_a"},
         {"x": 3, "y": 3, "w": 2.0, "d": 1.5, "h": 12.0, "name": "building_b"},
-        {"x": -3, "y": 5, "w": 1.0, "d": 2.5, "h": 6.0, "name": "building_c"},
+        {"x": -1, "y": 6, "w": 1.0, "d": 2.5, "h": 6.0, "name": "building_c"},
         {"x": 6, "y": -5, "w": 2.5, "d": 2.0, "h": 15.0, "name": "building_d"},
     ]
     for b in buildings:
@@ -241,7 +241,7 @@ def build_complex():
     actors["lake"] = {
         "mesh": lake_grid, "type": "mesh", "visible": True,
         "params": {"color": "#1a5276", "opacity": 0.6, "smooth_shading": True},
-        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 1.0}},
+        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 80.0}},
         "name": "lake",
     }
 
@@ -254,7 +254,7 @@ def build_complex():
     actors["grass_patch"] = {
         "mesh": grass_grid, "type": "mesh", "visible": True,
         "params": {"color": "#27ae60", "opacity": 0.5, "smooth_shading": True},
-        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 1.0}},
+        "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 30.0}},
         "name": "grass_patch",
     }
 
