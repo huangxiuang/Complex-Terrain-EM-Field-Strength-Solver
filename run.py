@@ -17,8 +17,9 @@ import os
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from src.core.config import EMConfig
+from src.core.scheduler import Scheduler
 from src.simple_scene_builder import build_simple_scene
-from src.cpe_solver import CPESolver2D
 
 
 def main():
@@ -54,16 +55,13 @@ def main():
         print(f"  {name}: bounds [{b[0]:.3f},{b[1]:.3f}, "
               f"{b[2]:.3f},{b[3]:.3f}, {b[4]:.3f},{b[5]:.3f}]")
 
-    # Create solver
-    print(f"\nInitialising CPESolver @ {args.freq/1e9:.1f} GHz …")
-    solver = CPESolver2D(
+    # Config
+    config = EMConfig(
         frequency=args.freq,
         antenna_pos=tx,
-        scene_objects=scene,
         n_z=args.nz,
         dr_factor=args.dr,
     )
-    print(f"  λ = {solver.wavelength:.3f} m,  k₀ = {solver.k0:.1f} rad/m")
 
     # Receiver list
     if args.rx:
@@ -73,16 +71,23 @@ def main():
     else:
         ftx = tx[2]
         rx_positions = [
-            (-2, 0, ftx),     # before wall, antenna height → LOS
-            (3, 0, ftx),      # after wall, above wall top → LOS
-            (3, 0, 2),        # after wall, below wall top → shadow
-            (3, 0, 4),        # after wall, just below wall top → shadow
-            (3, 0, 7),        # after wall, above wall → LOS
-            (8, 0, 2),        # far after wall, low → deep shadow
-            (8, 0, ftx),      # far after wall, antenna height → LOS
+            (-2, 0, ftx),
+            (3, 0, ftx),
+            (3, 0, 2),
+            (3, 0, 4),
+            (3, 0, 7),
+            (8, 0, 2),
+            (8, 0, ftx),
         ]
 
-    # ── Field computation ─────────────────────────────
+    # ── Pipeline ──────────────────────────────────────
+    print(f"\nInitialising pipeline @ {args.freq/1e9:.1f} GHz …")
+    print(f"  λ = {config.wavelength:.3f} m,  k₀ = {config.k0:.1f} rad/m")
+
+    sched = Scheduler()
+    results = sched.run(config=config, rx_points=rx_positions, scene=scene)
+
+    # ── Output ────────────────────────────────────────
     print(f"\n{'='*70}")
     print(f"  Antenna: ({tx[0]:.0f}, {tx[1]:.0f}, {tx[2]:.0f}) m")
     print(f"{'='*70}")
@@ -91,9 +96,9 @@ def main():
     print(f"  {'-'*80}")
 
     last_result = None
-    for rx in rx_positions:
-        r = solver._cart_to_cyl(rx)[0]
-        result = solver.compute(rx)
+    for result in results:
+        rx = result["rx"]
+        r = result["dist"]
         last_result = result
 
         delta = result["path_loss_dB"] - result["L_fs_dB"]
@@ -112,7 +117,6 @@ def main():
 
     print(f"{'='*70}\n")
 
-    # ── Plots ─────────────────────────────────────────
     if args.plot and last_result is not None:
         from src.visualizer import save_all_plots
         save_all_plots(last_result, tx, rx_positions, scene, args.freq)

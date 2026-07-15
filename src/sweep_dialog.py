@@ -162,16 +162,21 @@ class SweepDialog(QtWidgets.QDialog):
             QtWidgets.QApplication.processEvents()
 
             try:
-                from src.cpe_solver import CPESolver2D
-                solver = CPESolver2D(
+                from src.core.config import EMConfig
+                from src.core.scheduler import Scheduler
+                config = EMConfig(
                     frequency=freq,
                     antenna_pos=self._antenna_pos,
-                    scene_objects=self._scene,
                     n_z=nz, n_phi=nphi,
                 )
+                sched = Scheduler()
+                all_results = sched.run(
+                    config=config,
+                    rx_points=self._rx_points,
+                    scene=self._scene,
+                )
                 rx_results = []
-                for rx in self._rx_points:
-                    res = solver.compute(rx)
+                for res in all_results:
                     E_dbuv = 20.0 * np.log10(max(res["E_rx"], 1e-15) / 1e-6)
                     rx_results.append({
                         "L_pe": res["path_loss_dB"],

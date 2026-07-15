@@ -14,7 +14,8 @@ import pyvistaqt as pvqt
 from vtkmodules.vtkRenderingCore import vtkActor
 
 from src.simple_scene_builder import build_simple_scene
-from src.cpe_solver import CPESolver2D
+from src.core.config import EMConfig
+from src.core.scheduler import Scheduler
 from src.field_dialog import FieldPointDialog, FieldResultDialog, PreciseRxDialog
 from src.layer_dialog import LayerManagementDialog, ClipManagerDialog
 from src.material_params_dialog import MaterialParamsDialog, LAYER_MATERIAL_MAP
@@ -258,24 +259,29 @@ class MainWindow(QtWidgets.QMainWindow):
         progress.setMinimumDuration(0)
         progress.setValue(0)
 
-        solver = CPESolver2D(freq, tx, self.scene_objects)
+        config = EMConfig(
+            frequency=freq,
+            antenna_pos=tx,
+        )
+        sched = Scheduler()
+        results_raw = sched.run(config=config, rx_points=rx_points, scene=self.scene_objects)
         results = []
-        for i, rx in enumerate(rx_points):
-            progress.setValue(i)
-            progress.setLabelText(
-                f"CPE 计算中… ({i+1}/{len(rx_points)})\n"
-                f"({rx[0]:.1f}, {rx[1]:.1f}, {rx[2]:.1f})")
-            QtWidgets.QApplication.processEvents()
-            res = solver.compute(rx)
+        for i, res in enumerate(results_raw):
+            rx = res["rx"]
             E_rx_dbuv = 20.0 * np.log10(max(res["E_rx"], 1e-15) / 1e-6)
             results.append({
                 "rx": rx,
-                "dist": np.hypot(rx[0]-tx[0], rx[1]-tx[1]),
+                "dist": res["dist"],
                 "path_loss_dB": res["path_loss_dB"],
                 "L_fs_dB": res["L_fs_dB"],
                 "E_rx_vm": res["E_rx"],
                 "E_rx_dbuv": E_rx_dbuv,
             })
+            progress.setValue(i + 1)
+            progress.setLabelText(
+                f"CPE 计算中… ({i+1}/{len(rx_points)})\n"
+                f"({rx[0]:.1f}, {rx[1]:.1f}, {rx[2]:.1f})")
+            QtWidgets.QApplication.processEvents()
 
         progress.setValue(len(rx_points))
         progress.close()
