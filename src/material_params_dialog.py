@@ -105,10 +105,10 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         omega = 2.0 * np.pi * self._freq
         eps0 = 8.854187817e-12
 
+        _visual = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         for name, obj in self._scene.items():
-            if name in ("antenna",):
+            if name in ("antenna",) or name in _visual:
                 continue
-            # Skip base visual layers (only show physical materials)
             if name.startswith("layer_") and "_clip" not in name:
                 continue
             mat = None
@@ -243,10 +243,11 @@ class MaterialParamsDialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         if reply != QtWidgets.QMessageBox.Yes:
             return
+        _vis = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         for name, obj in self._scene.items():
-            if name == "antenna" or (name.startswith("layer_") and "_clip" not in name):
+            if name == "antenna" or name in _vis or (name.startswith("layer_") and "_clip" not in name):
                 continue
-            label = LAYER_MATERIAL_MAP.get(name, "地面")
+            label = LAYER_MATERIAL_MAP.get(name, "干燥土壤")
             dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"])
             extra = obj.get("extra", {})
             extra["material"] = {"label": label, **dflt}
