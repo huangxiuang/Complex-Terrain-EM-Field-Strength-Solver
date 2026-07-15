@@ -226,11 +226,44 @@ class CPESolver2D:
                 if m is not None:
                     nc,_=_resolve_mat(self.freq,m); ng[pi,:]=nc; nl[pi,:]=nc
                     cg[pi,:]=is_conductor(m["sigma"]); cl[pi,:]=cg[pi,:]
-            # Standard obstacles (wall) — skip base layer_* objects
+            # ── Wall obstacles: per‑phi blocking with minimum shadow width ──
+            for nm_key, o in self.scene.items():
+                extra = o.get("extra") or {}
+                if extra.get("obstacle_type") != "wall":
+                    continue
+                msh = o.get("mesh")
+                if msh is None: continue
+                wb = msh.bounds
+                wm = _get_mat(o)
+                if wm is not None:
+                    wnc, wcond = _resolve_mat(self.freq, wm)
+                else:
+                    wnc, wcond = np.complex64(self.n_atm), True
+                for pi2, phi2 in enumerate(self.phi_vals):
+                    c2, s2 = np.cos(phi2), np.sin(phi2)
+                    xp2 = self.antenna[0] + r_vals * c2
+                    yp2 = self.antenna[1] + r_vals * s2
+                    inside2 = ((xp2 >= wb[0]) & (xp2 <= wb[1]) &
+                               (yp2 >= wb[2]) & (yp2 <= wb[3]))
+                    if not inside2.any():
+                        continue
+                    # 扩展至最小 3 步的径向段
+                    idx_list = np.where(inside2)[0]
+                    if len(idx_list) < 3:
+                        mid = idx_list[len(idx_list) // 2]
+                        idx_list = np.arange(max(0, mid - 1), min(nr, mid + 2))
+                    zg[pi2, idx_list] = np.maximum(zg[pi2, idx_list], wb[5])
+                    zt[pi2, idx_list] = np.maximum(zt[pi2, idx_list], wb[5])
+                    ng[pi2, idx_list] = wnc; nl[pi2, idx_list] = wnc
+                    cg[pi2, idx_list] = wcond; cl[pi2, idx_list] = wcond
+
+            # Standard obstacles — skip wall‑type (already handled)
             for nm_key, o in self.scene.items():
                 if nm_key in ("terrain", "antenna") or "_clip" in nm_key:
                     continue
                 if nm_key.startswith("layer_"):
+                    continue
+                if (o.get("extra") or {}).get("obstacle_type") == "wall":
                     continue
                 if o.get("type")!="mesh": continue
                 msh=o["mesh"]

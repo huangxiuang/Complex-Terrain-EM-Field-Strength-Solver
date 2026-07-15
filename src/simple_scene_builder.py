@@ -26,11 +26,11 @@ import pyvista as pv
 GROUND_HALF_SPAN = 10.0         # XY half‑span of ground plane
 GROUND_RES       = 50           # grid resolution per axis
 
-WALL_X            = 0.0         # wall centre X (thin in x)
-WALL_Y_HALF       = 8.0         # wall half‑length along y
+WALL_X            = 0.0         # wall centre X
+WALL_Y_HALF       = 15.0        # wall half‑length along y (宽于地形，防 phi 泄漏)
 WALL_Z_BASE       = 0.0         # wall bottom z
-WALL_Z_TOP        = 5.0         # wall top z
-WALL_THICKNESS    = 0.1         # wall thickness in x
+WALL_Z_TOP        = 5.5         # wall top z (略低于天线 6m，经典 knife‑edge)
+WALL_THICKNESS    = 1.0         # wall thickness in x (≈10 PE 步长，足以形成阴影)
 
 from src.antenna_types import DEFAULT_ANTENNA_CONFIG
 
@@ -130,6 +130,7 @@ def build_simple_scene():
                 "eps_r": 1.0,
                 "sigma": 3.8e7,
             },
+            "obstacle_type": "wall",
         },
         "name": "wall",
     }
