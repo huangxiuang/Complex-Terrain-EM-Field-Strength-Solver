@@ -122,7 +122,7 @@ class LayerManagementDialog(QtWidgets.QDialog):
 
         # Check if any sand/grass/earth is selected
         has_shape_layers = any(
-            k in ("layer_sand", "layer_grass", "layer_earth")
+            k in ("layer_sand", "layer_grass", "layer_earth", "layer_water")
             for k in selected_layers
         )
         if has_shape_layers:
@@ -166,6 +166,28 @@ class LayerManagementDialog(QtWidgets.QDialog):
         self._btn_clear_all = QtWidgets.QPushButton("清除全部图形")
         self._btn_clear_all.clicked.connect(self._clear_all_shapes)
         left.addWidget(self._btn_clear_all)
+
+        # ── Manual coordinate input ──
+        left.addWidget(QtWidgets.QLabel("手动输入顶点:"))
+        self._coord_table = QtWidgets.QTableWidget()
+        self._coord_table.setColumnCount(2)
+        self._coord_table.setHorizontalHeaderLabels(["X", "Y"])
+        self._coord_table.setRowCount(1)
+        self._coord_table.setMaximumHeight(120)
+        left.addWidget(self._coord_table)
+        coord_btn_row = QtWidgets.QHBoxLayout()
+        btn_add_row = QtWidgets.QPushButton("+ 行")
+        btn_add_row.clicked.connect(lambda: self._coord_table.insertRow(
+            self._coord_table.rowCount()))
+        coord_btn_row.addWidget(btn_add_row)
+        btn_del_row = QtWidgets.QPushButton("- 行")
+        btn_del_row.clicked.connect(lambda: self._coord_table.removeRow(
+            max(0, self._coord_table.currentRow())))
+        coord_btn_row.addWidget(btn_del_row)
+        btn_use_coords = QtWidgets.QPushButton("用这些坐标")
+        btn_use_coords.clicked.connect(self._add_manual_shape)
+        coord_btn_row.addWidget(btn_use_coords)
+        left.addLayout(coord_btn_row)
 
         left_w = QtWidgets.QWidget()
         left_w.setLayout(left)
@@ -279,6 +301,31 @@ class LayerManagementDialog(QtWidgets.QDialog):
             self._canvas.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
         else:
             self._canvas.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+
+    # ── Manual coordinate input ──
+
+    def _add_manual_shape(self):
+        pts = []
+        for r in range(self._coord_table.rowCount()):
+            x_item = self._coord_table.item(r, 0)
+            y_item = self._coord_table.item(r, 1)
+            if x_item is None or y_item is None:
+                continue
+            try:
+                x = float(x_item.text())
+                y = float(y_item.text())
+            except ValueError:
+                continue
+            pts.append([x, y])
+        if len(pts) < 3:
+            QtWidgets.QMessageBox.warning(self, "提示", "至少需要 3 个顶点")
+            return
+        poly = np.array(pts)
+        shape = {"type": "polygon", "xy": poly, "opacity": 1.0}
+        self._shapes.append(shape)
+        self._update_shape_list()
+        self._shape_list.setCurrentRow(len(self._shapes) - 1)
+        self._redraw_canvas()
 
     # ── Canvas interaction ──────────────────────────────────
 
@@ -529,7 +576,7 @@ class LayerManagementDialog(QtWidgets.QDialog):
         shapes_by_layer = {}
         if self._shapes:
             shape_layers = [k for k in self._selected_layers
-                            if k in ("layer_sand", "layer_grass", "layer_earth")]
+                            if k in ("layer_sand", "layer_grass", "layer_earth", "layer_water")]
             for key in shape_layers:
                 shapes_by_layer[key] = [
                     {
