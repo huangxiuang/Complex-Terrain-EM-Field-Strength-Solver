@@ -132,23 +132,6 @@ class FieldPointDialog(QtWidgets.QDialog):
             except Exception:
                 pass
 
-        # Draw obstacles (wall, etc.)
-        for name, obj in self.scene.items():
-            if name in ("terrain", "antenna"):
-                continue
-            if obj.get("type") != "mesh":
-                continue
-            try:
-                b = obj["mesh"].bounds
-                rect = plt.Rectangle(
-                    (b[0], b[2]), b[1]-b[0], b[3]-b[2],
-                    linewidth=1.5, edgecolor="#cc0000", facecolor="none",
-                    linestyle="--", zorder=2
-                )
-                self._ax.add_patch(rect)
-            except Exception:
-                pass
-
         # Antenna marker
         self._ax.plot(self.tx[0], self.tx[1], "o", color="cyan",
                       markersize=12, markeredgecolor="black",
@@ -411,12 +394,7 @@ class PreciseRxDialog(QtWidgets.QDialog):
             except Exception:
                 pass
 
-        # 障碍物
-        for nm, o in self.scene.items():
-            if nm in ("terrain","antenna") or o.get("type")!="mesh": continue
-            b=o["mesh"].bounds
-            self._ax1.add_patch(plt.Rectangle((b[0],b[2]),b[1]-b[0],b[3]-b[2],
-                linewidth=1.5, edgecolor="#cc0000", facecolor="none", linestyle="--"))
+        # 测量点
         xys = np.array(self._xy_points) if self._xy_points else np.empty((0,2))
         if len(xys)>0:
             self._ax1.scatter(xys[:,0], xys[:,1], c="orange", s=30, zorder=5)

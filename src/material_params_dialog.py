@@ -105,24 +105,41 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         omega = 2.0 * np.pi * self._freq
         eps0 = 8.854187817e-12
 
-        # 首行固定：空气（背景介质）
+        # 首行：空气（背景介质）— 可编辑
         air = DEFAULT_MATERIALS["空气"]
         r0 = self._table.rowCount()
         self._table.insertRow(r0)
         self._table.setItem(r0, 0, QtWidgets.QTableWidgetItem("（背景）"))
         self._table.setItem(r0, 1, QtWidgets.QTableWidgetItem("空气"))
-        for col, val in [(2, air["eps_r"]), (3, air["sigma"]), (4, air["thickness_cm"])]:
-            item = QtWidgets.QTableWidgetItem(str(val))
-            item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
-            self._table.setItem(r0, col, item)
+
+        spin_air_eps = QtWidgets.QDoubleSpinBox()
+        spin_air_eps.setRange(1.0, 2.0); spin_air_eps.setDecimals(4)
+        spin_air_eps.setValue(air["eps_r"])
+        spin_air_eps.valueChanged.connect(lambda v: self._update_air_n(r0))
+        self._table.setCellWidget(r0, 2, spin_air_eps)
+        self._air_spin_eps = spin_air_eps
+
+        spin_air_sig = QtWidgets.QDoubleSpinBox()
+        spin_air_sig.setRange(0.0, 0.1); spin_air_sig.setDecimals(6)
+        spin_air_sig.setValue(air["sigma"])
+        spin_air_sig.valueChanged.connect(lambda v: self._update_air_n(r0))
+        self._table.setCellWidget(r0, 3, spin_air_sig)
+        self._air_spin_sig = spin_air_sig
+
+        item_t = QtWidgets.QTableWidgetItem("0.0")
+        item_t.setFlags(item_t.flags() & ~QtCore.Qt.ItemIsEditable)
+        self._table.setItem(r0, 4, item_t)
+
         n_air = np.sqrt(air["eps_r"] - 1j * air["sigma"] / (omega * eps0 + 1e-30))
-        for col, val in [(5, f"{n_air.real:.4f}"), (6, f"{n_air.imag:.4e}")]:
-            item = QtWidgets.QTableWidgetItem(val)
-            item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
-            self._table.setItem(r0, col, item)
-        # 浅蓝背景标记
+        self._air_item_re = QtWidgets.QTableWidgetItem(f"{n_air.real:.4f}")
+        self._air_item_re.setFlags(self._air_item_re.flags() & ~QtCore.Qt.ItemIsEditable)
+        self._table.setItem(r0, 5, self._air_item_re)
+        self._air_item_im = QtWidgets.QTableWidgetItem(f"{n_air.imag:.4e}")
+        self._air_item_im.setFlags(self._air_item_im.flags() & ~QtCore.Qt.ItemIsEditable)
+        self._table.setItem(r0, 6, self._air_item_im)
         for col in range(7):
-            self._table.item(r0, col).setBackground(QtGui.QColor("#e3f2fd"))
+            if self._table.item(r0, col):
+                self._table.item(r0, col).setBackground(QtGui.QColor("#e3f2fd"))
 
         _visual = {"bird", "tree", "vegetation", "aircraft", "aircraft2"}
         for name, obj in self._scene.items():
@@ -214,6 +231,15 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         n_c = np.sqrt(eps_r - 1j * sigma / (omega * eps0 + 1e-30))
         item_re.setText(f"{n_c.real:.4f}")
         item_im.setText(f"{n_c.imag:.4e}")
+
+    def _update_air_n(self, row):
+        eps_r = self._air_spin_eps.value()
+        sigma = self._air_spin_sig.value()
+        omega = 2.0 * np.pi * self._freq
+        eps0 = 8.854187817e-12
+        n_c = np.sqrt(eps_r - 1j * sigma / (omega * eps0 + 1e-30))
+        self._air_item_re.setText(f"{n_c.real:.4f}")
+        self._air_item_im.setText(f"{n_c.imag:.4e}")
 
     def _on_freq_changed(self, val):
         self._freq = val * 1e9
