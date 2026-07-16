@@ -47,6 +47,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._tree.setHeaderHidden(True)
         self._tree.setMinimumWidth(200)
         self._tree.setMaximumWidth(320)
+        self._tree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         self._tree.itemDoubleClicked.connect(self._on_tree_double_click)
 
         self._tree_rx_root = QtWidgets.QTreeWidgetItem(["📁 测量点"])
@@ -56,12 +58,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._tree_rx_root.setExpanded(True)
         self._tree_func_root.setExpanded(True)
 
-        solve_item = QtWidgets.QTreeWidgetItem(["⚡ 求解"])
-        solve_item.setData(0, QtCore.Qt.UserRole, "solve")
-        self._tree_func_root.addChild(solve_item)
-        plot_item = QtWidgets.QTreeWidgetItem(["📊 画图"])
-        plot_item.setData(0, QtCore.Qt.UserRole, "plot")
-        self._tree_func_root.addChild(plot_item)
+        for label, role in [("➕ 添加", "add_rx"), ("⚡ 求解", "solve"), ("📊 画图", "plot")]:
+            item = QtWidgets.QTreeWidgetItem([label])
+            item.setData(0, QtCore.Qt.UserRole, role)
+            self._tree_func_root.addChild(item)
 
         dock = QtWidgets.QDockWidget("导航", self)
         dock.setWidget(self._tree)
@@ -152,12 +152,6 @@ class MainWindow(QtWidgets.QMainWindow):
         menu_params.addAction("材料参数设置…", self._open_material_params)
         menu_params.addAction("天线设置…", self._open_antenna_dialog)
         menu_tools = mb.addMenu("工具 (&T)")
-        action_rx = menu_tools.addAction("添加测量点… (&A)")
-        action_rx.setShortcut("Ctrl+A")
-        action_rx.triggered.connect(self._on_add_rx_points)
-        action_precise = menu_tools.addAction("精准添加测量点…")
-        action_precise.triggered.connect(self._on_precise_rx)
-        menu_tools.addSeparator()
         action_sweep = menu_tools.addAction("扫频模式… (&S)")
         action_sweep.setShortcut("Ctrl+S")
         action_sweep.triggered.connect(self._on_sweep)
@@ -285,6 +279,7 @@ class MainWindow(QtWidgets.QMainWindow):
             for i, (x, y, z) in enumerate(self._pending_rx_points):
                 item = QtWidgets.QTreeWidgetItem([f"点{i+1}: ({x:.2f}, {y:.2f}, {z:.2f})"])
                 item.setData(0, QtCore.Qt.UserRole, f"rx:{i}")
+                item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
                 self._tree_rx_root.addChild(item)
 
     def _update_results_tree(self, results):
@@ -313,15 +308,57 @@ class MainWindow(QtWidgets.QMainWindow):
         self._tree.addTopLevelItem(root)
         root.setExpanded(True)
 
+    def _on_tree_context_menu(self, pos):
+        item = self._tree.itemAt(pos)
+        if not item: return
+        role = item.data(0, QtCore.Qt.UserRole)
+        if role and role.startswith("rx:"):
+            idx = int(role.split(":")[1])
+            menu = QtWidgets.QMenu()
+            act_del = menu.addAction("🗑 删除")
+            act_del.triggered.connect(lambda: self._delete_rx_point(idx))
+            menu.exec_(self._tree.viewport().mapToGlobal(pos))
+
+    def _delete_rx_point(self, idx):
+        if 0 <= idx < len(self._pending_rx_points):
+            del self._pending_rx_points[idx]
+            # 同步删除对应结果
+            if self._last_results and idx < len(self._last_results):
+                del self._last_results[idx]
+            self._draw_rx_markers()
+            self._update_solve_ui()
+            self._update_rx_tree()
+            self._update_results_tree(self._last_results)
+            self.statusBar().showMessage(f"已删除点{idx+1}")
+
     def _on_tree_double_click(self, item, col):
         role = item.data(0, QtCore.Qt.UserRole)
         if role == "solve": self._on_solve()
         elif role == "plot": self._on_plot()
+        elif role == "add_rx": self._on_precise_rx()
         elif role and role.startswith("rx:"):
             idx = int(role.split(":")[1])
             if idx < len(self._pending_rx_points):
                 x, y, z = self._pending_rx_points[idx]
-                self.statusBar().showMessage(f"点{idx+1}: ({x:.3f}, {y:.3f}, {z:.3f})")
+                # 弹出简易编辑对话框
+                dlg = QtWidgets.QDialog(self)
+                dlg.setWindowTitle(f"编辑 点{idx+1}")
+                lo = QtWidgets.QFormLayout(dlg)
+                sx = QtWidgets.QDoubleSpinBox(); sx.setRange(-100, 100); sx.setDecimals(3); sx.setValue(x)
+                sy = QtWidgets.QDoubleSpinBox(); sy.setRange(-100, 100); sy.setDecimals(3); sy.setValue(y)
+                sz = QtWidgets.QDoubleSpinBox(); sz.setRange(-10, 200); sz.setDecimals(3); sz.setValue(z)
+                lo.addRow("X (m):", sx); lo.addRow("Y (m):", sy); lo.addRow("Z (m):", sz)
+                btn = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+                btn.accepted.connect(dlg.accept); btn.rejected.connect(dlg.reject); lo.addRow(btn)
+                if dlg.exec_() == QtWidgets.QDialog.Accepted:
+                    self._pending_rx_points[idx] = (sx.value(), sy.value(), sz.value())
+                    self._draw_rx_markers()
+                    self._update_rx_tree()
+                    self._last_results = None
+                    self._update_results_tree(None)
+                    self._last_field_data = None
+                    self._btn_plot.setEnabled(False)
+                    self.statusBar().showMessage(f"点{idx+1} 已更新")
         elif role and role.startswith("result:"):
             idx = int(role.split(":")[1])
             if self._last_results and idx < len(self._last_results):
