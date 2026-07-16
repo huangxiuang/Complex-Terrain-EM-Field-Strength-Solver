@@ -1,5 +1,5 @@
 """
-画图对话框 — 传输损耗分布图、电场伪彩图、剖面图。
+画图对话框 — 勾选图类型→设参数→生成。
 """
 
 import numpy as np
@@ -12,25 +12,84 @@ plt.rcParams['axes.unicode_minus'] = False
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
+# 图定义: (标签, key, 参数列表)
+# 参数: (name, label, min, max, default_getter)
+PLOT_DEFS = [
+    ("r-z 传输损耗分布", "rz_tl", [
+        ("phi_deg", "方位角 φ (°)", -90, 90, lambda d: 0),
+    ]),
+    ("r-z 电场分布", "rz_field", [
+        ("phi_deg", "方位角 φ (°)", -90, 90, lambda d: 0),
+    ]),
+    ("φ-z 传输损耗分布", "phiz_tl", [
+        ("r_fix", "固定距离 r (m)", 0, 999, lambda d: float(d["r_vals"][-1])),
+    ]),
+    ("路径损耗 vs 距离", "tl_vs_r", [
+        ("z_fix", "固定高度 z (m)", 0, 200, lambda d: float(d["config"].antenna_pos[2])),
+    ]),
+    ("场强 vs 高度", "e_vs_z", [
+        ("r_fix", "固定距离 r (m)", 0, 999, lambda d: float(d["r_vals"][-1])),
+    ]),
+    ("TL 3D 表面", "tl_3d", []),
+]
+
 
 class PlotDialog(QtWidgets.QDialog):
-    """多标签页绘图对话框，每页可独立导出。"""
-
     def __init__(self, parent, field_data):
         super().__init__(parent)
-        self.setWindowTitle("传输损耗分布图")
-        self.setMinimumSize(900, 650)
+        self.setWindowTitle("画图")
+        self.setMinimumSize(700, 500)
         self._data = field_data
         self._figures = []
+        self._param_widgets = {}
 
         layout = QtWidgets.QVBoxLayout(self)
 
-        # 标签页
-        self._tabs = QtWidgets.QTabWidget()
-        layout.addWidget(self._tabs, 1)
+        # 上方: 图类型列表 + 参数
+        top = QtWidgets.QHBoxLayout()
+        # 左侧: 勾选列表
+        left = QtWidgets.QVBoxLayout()
+        left.addWidget(QtWidgets.QLabel("选择图类型:"))
+        self._list = QtWidgets.QListWidget()
+        for label, key, params in PLOT_DEFS:
+            item = QtWidgets.QListWidgetItem(label)
+            item.setData(QtCore.Qt.UserRole, key)
+            item.setCheckState(QtCore.Qt.Unchecked)
+            self._list.addItem(item)
+        self._list.itemChanged.connect(self._on_check_changed)
+        left.addWidget(self._list, 1)
+        top.addLayout(left)
+
+        # 右侧: 参数面板
+        right = QtWidgets.QVBoxLayout()
+        right.addWidget(QtWidgets.QLabel("参数设置:"))
+        self._param_stack = QtWidgets.QStackedWidget()
+        self._param_pages = {}
+        for label, key, params in PLOT_DEFS:
+            page = QtWidgets.QWidget()
+            flo = QtWidgets.QFormLayout(page)
+            pw = {}
+            for pname, plabel, pmin, pmax, pdef in params:
+                val = pdef(self._data)
+                spin = QtWidgets.QDoubleSpinBox()
+                spin.setRange(pmin, pmax)
+                spin.setDecimals(2)
+                spin.setValue(val)
+                flo.addRow(plabel + ":", spin)
+                pw[pname] = spin
+            self._param_pages[key] = pw
+            self._param_stack.addWidget(page)
+        self._param_stack.setCurrentIndex(0)
+        right.addWidget(self._param_stack, 1)
+        top.addLayout(right)
+        layout.addLayout(top)
 
         # 按钮
         btn = QtWidgets.QHBoxLayout()
+        self._btn_gen = QtWidgets.QPushButton("▶ 生成")
+        self._btn_gen.clicked.connect(self._generate)
+        self._btn_gen.setStyleSheet("QPushButton { font-weight: bold; background: #2196F3; color: white; padding: 6px 20px; }")
+        btn.addWidget(self._btn_gen)
         btn_export = QtWidgets.QPushButton("导出当前图…")
         btn_export.clicked.connect(self._export_current)
         btn.addWidget(btn_export)
@@ -43,52 +102,136 @@ class PlotDialog(QtWidgets.QDialog):
         btn.addWidget(btn_close)
         layout.addLayout(btn)
 
-        self._build_plots()
+        # 结果区: 标签页
+        self._tabs = QtWidgets.QTabWidget()
+        layout.addWidget(self._tabs, 1)
 
-    def _build_plots(self):
+    def _on_check_changed(self, item):
+        key = item.data(QtCore.Qt.UserRole)
+        for i, (_, pk, _) in enumerate(PLOT_DEFS):
+            if pk == key:
+                if item.checkState() == QtCore.Qt.Checked:
+                    self._param_stack.setCurrentIndex(i)
+                break
+
+    def _generate(self):
+        self._tabs.clear()
+        self._figures.clear()
         d = self._data
         u = d["u_total"]  # (nr, nphi, nz)
         r = d["r_vals"]
         z = d["z_vals"]
         phi = d["phi_vals"]
         cfg = d["config"]
-
-        # phi=0 场
-        pi0 = 0
-        u_r0 = u[:, pi0, :]  # (nr, nz)
-        E_r0 = np.abs(u_r0)
-
-        # 传输损耗 TL = -20*log10(|u|/|u_ref|)
-        u_ref = np.abs(u[0, pi0, :]).max() or 1e-30
-        TL = -20 * np.log10(np.maximum(E_r0 / u_ref, 1e-15))
-        # 补偿柱面扩散: TL_comp = TL + 10*log10(r/r0)
         r0 = r[0]
-        for i in range(len(r)):
-            TL[i, :] += 10 * np.log10(max(r[i] / r0, 1.0))
 
-        R, Z = np.meshgrid(r, z, indexing="ij")
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.checkState() != QtCore.Qt.Checked:
+                continue
+            key = item.data(QtCore.Qt.UserRole)
+            pw = self._param_pages.get(key, {})
 
-        # ── 图1: 距离-深度 TL 分布 (r-z contour) ──
-        self._add_plot("距离-深度 (r-z) TL 分布", self._fig_r_z_tl(R, Z, TL, cfg))
+            if key == "rz_tl" or key == "rz_field":
+                phi_deg = pw.get("phi_deg", None)
+                if phi_deg is None: continue
+                phi_target = np.radians(phi_deg.value())
+                pi = np.argmin(np.abs(phi - phi_target))
+                u_slice = np.abs(u[:, pi, :])  # (nr, nz)
+                R, Z = np.meshgrid(r, z, indexing="ij")
 
-        # ── 图2: 距离-深度 电场伪彩 (r-z |E|) ──
-        self._add_plot("距离-深度 (r-z) 电场分布", self._fig_r_z_field(R, Z, E_r0, cfg))
+                if key == "rz_tl":
+                    u_ref = u_slice[0, :].max() or 1e-30
+                    TL = -20 * np.log10(np.maximum(u_slice / u_ref, 1e-15))
+                    for ri in range(len(r)):
+                        TL[ri, :] += 10 * np.log10(max(r[ri] / r0, 1.0))
+                    title = f"r-z TL分布 φ={phi_deg.value():.0f}°"
+                    fig = self._contour(R, Z, TL, "TL (dB)", title, "jet", cfg)
+                else:
+                    E_db = 20 * np.log10(np.maximum(u_slice, 1e-15))
+                    title = f"r-z 电场分布 φ={phi_deg.value():.0f}°"
+                    fig = self._contour(R, Z, E_db, "|E| (dB)", title, "hot", cfg)
+                self._add_tab(title, fig)
 
-        # ── 图3: 方位角-深度 TL 分布 (φ-z) ──
-        ri = len(r) - 1  # 最远距离处
-        self._add_plot("方位角-深度 (φ-z) TL 分布", self._fig_phi_z(phi, z, u[ri, :, :], r[ri], r0, cfg))
+            elif key == "phiz_tl":
+                r_fix = pw.get("r_fix", None)
+                if r_fix is None: continue
+                ri = np.argmin(np.abs(r - r_fix.value()))
+                u_slice = np.abs(u[ri, :, :])  # (nphi, nz)
+                u_ref = u_slice.max() or 1e-30
+                TL = -20 * np.log10(np.maximum(u_slice / u_ref, 1e-15))
+                TL += 10 * np.log10(max(r[ri] / r0, 1.0))
+                phi_deg = np.degrees(phi)
+                P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
+                title = f"φ-z TL分布 r={r[ri]:.1f}m"
+                fig = self._contour(P, Zp, TL, "TL (dB)", title, "jet", cfg)
+                self._add_tab(title, fig)
 
-        # ── 图4: 路径损耗 vs 距离 (fix z=antenna height) ──
-        zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
-        self._add_plot("路径损耗 vs 距离", self._fig_tl_vs_range(r, TL[:, zi_ant], cfg))
+            elif key == "tl_vs_r":
+                z_fix = pw.get("z_fix", None)
+                if z_fix is None: continue
+                zi = np.argmin(np.abs(z - z_fix.value()))
+                u_line = np.abs(u[:, 0, zi])
+                u_ref = u_line[0] if u_line[0] > 0 else 1e-30
+                TL = -20 * np.log10(np.maximum(u_line / u_ref, 1e-15))
+                for ri in range(len(r)):
+                    TL[ri] += 10 * np.log10(max(r[ri] / r0, 1.0))
+                title = f"路径损耗 vs 距离 z={z[zi]:.1f}m"
+                fig, ax = plt.subplots(figsize=(8, 4))
+                ax.plot(r, TL, "b-", linewidth=1.5)
+                ax.set_xlabel("距离 r (m)"); ax.set_ylabel("TL (dB)")
+                ax.set_title(title); ax.grid(True, alpha=0.3)
+                fig.tight_layout()
+                self._add_tab(title, fig)
 
-        # ── 图5: 场强 vs 高度 (fix r at max range) ──
-        self._add_plot("场强 vs 高度", self._fig_E_vs_height(z, E_r0[-1, :], TL[-1, :], cfg))
+            elif key == "e_vs_z":
+                r_fix = pw.get("r_fix", None)
+                if r_fix is None: continue
+                ri = np.argmin(np.abs(r - r_fix.value()))
+                E_line = np.abs(u[ri, 0, :])
+                E_db = 20 * np.log10(np.maximum(E_line, 1e-15))
+                title = f"场强 vs 高度 r={r[ri]:.1f}m"
+                fig, ax = plt.subplots(figsize=(6, 5))
+                ax.plot(E_db, z, "r-", linewidth=1.5)
+                ax.set_xlabel("|E| (dB)"); ax.set_ylabel("高度 z (m)")
+                ax.set_title(title); ax.grid(True, alpha=0.3)
+                fig.tight_layout()
+                self._add_tab(title, fig)
 
-        # ── 图6: 3D 表面图 ──
-        self._add_plot("TL 3D 表面", self._fig_3d(R, Z, TL, cfg))
+            elif key == "tl_3d":
+                pi0 = 0
+                u_slice = np.abs(u[:, pi0, :])
+                u_ref = u_slice[0, :].max() or 1e-30
+                TL = -20 * np.log10(np.maximum(u_slice / u_ref, 1e-15))
+                for ri in range(len(r)):
+                    TL[ri, :] += 10 * np.log10(max(r[ri] / r0, 1.0))
+                R, Z = np.meshgrid(r, z, indexing="ij")
+                title = "TL 3D 表面"
+                from mpl_toolkits.mplot3d import Axes3D
+                fig = plt.figure(figsize=(9, 6))
+                ax = fig.add_subplot(111, projection="3d")
+                sr = max(1, len(r)//80); sz = max(1, len(z)//80)
+                surf = ax.plot_surface(R[::sr,::sz], Z[::sr,::sz], TL[::sr,::sz],
+                                       cmap="jet", alpha=0.85, linewidth=0)
+                fig.colorbar(surf, ax=ax, label="TL (dB)", shrink=0.6)
+                ax.set_xlabel("r (m)"); ax.set_ylabel("z (m)"); ax.set_zlabel("TL (dB)")
+                ax.set_title(title); fig.tight_layout()
+                self._add_tab(title, fig)
 
-    def _add_plot(self, title, fig):
+    def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
+        fig, ax = plt.subplots(figsize=(8, 5))
+        lev = np.linspace(data.min(), min(data.max(), data.min() + 80), 30)
+        cf = ax.contourf(X, Y, data, levels=lev, cmap=cmap, extend="both")
+        fig.colorbar(cf, ax=ax, label=cbar_label)
+        ax.set_xlabel("r (m)" if X.max() > 10 else "φ (°)")
+        ax.set_ylabel("z (m)")
+        ax.set_title(title)
+        if cfg.antenna_pos[2] <= Y.max():
+            ax.plot(0 if X.max() > 10 else 0, cfg.antenna_pos[2], "w*", markersize=8)
+        fig.tight_layout()
+        return fig
+
+    def _add_tab(self, title, fig):
         self._figures.append((title, fig))
         w = QtWidgets.QWidget()
         lo = QtWidgets.QVBoxLayout(w)
@@ -96,116 +239,19 @@ class PlotDialog(QtWidgets.QDialog):
         lo.addWidget(canvas)
         self._tabs.addTab(w, title)
 
-    # ═══════════════════════════════════════
-    #  各图绘制函数
-    # ═══════════════════════════════════════
-
-    def _fig_r_z_tl(self, R, Z, TL, cfg):
-        fig, ax = plt.subplots(figsize=(8, 5))
-        lev = np.linspace(TL.min(), min(TL.max(), TL.min() + 80), 30)
-        cf = ax.contourf(R, Z, TL, levels=lev, cmap="jet", extend="both")
-        cbar = fig.colorbar(cf, ax=ax, label="传输损耗 TL (dB)")
-        ax.set_xlabel("距离 r (m)")
-        ax.set_ylabel("高度 z (m)")
-        ax.set_title(f"距离-深度 传输损耗分布 @ {cfg.frequency/1e9:.1f} GHz")
-        # 天线标记
-        ax.plot(0, cfg.antenna_pos[2], "w*", markersize=10, markeredgecolor="k")
-        fig.tight_layout()
-        return fig
-
-    def _fig_r_z_field(self, R, Z, E, cfg):
-        fig, ax = plt.subplots(figsize=(8, 5))
-        E_db = 20 * np.log10(np.maximum(E, 1e-15))
-        lev = np.linspace(E_db.max() - 60, E_db.max(), 30)
-        cf = ax.contourf(R, Z, E_db, levels=lev, cmap="hot", extend="both")
-        cbar = fig.colorbar(cf, ax=ax, label="|E| (dB)")
-        ax.set_xlabel("距离 r (m)")
-        ax.set_ylabel("高度 z (m)")
-        ax.set_title(f"距离-深度 电场分布 @ {cfg.frequency/1e9:.1f} GHz")
-        ax.plot(0, cfg.antenna_pos[2], "c*", markersize=10, markeredgecolor="k")
-        fig.tight_layout()
-        return fig
-
-    def _fig_phi_z(self, phi, z, u_phi, r_max, r0, cfg):
-        fig, ax = plt.subplots(figsize=(8, 5))
-        E_phi = np.abs(u_phi)  # (nphi, nz)
-        u_ref = E_phi.max() or 1e-30
-        TL_phi = -20 * np.log10(np.maximum(E_phi / u_ref, 1e-15))
-        TL_phi += 10 * np.log10(max(r_max / r0, 1.0))
-        phi_deg = np.degrees(phi)
-        P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
-        lev = np.linspace(TL_phi.min(), min(TL_phi.max(), TL_phi.min() + 60), 25)
-        cf = ax.contourf(P, Zp, TL_phi, levels=lev, cmap="jet", extend="both")
-        cbar = fig.colorbar(cf, ax=ax, label="传输损耗 TL (dB)")
-        ax.set_xlabel("方位角 φ (°)")
-        ax.set_ylabel("高度 z (m)")
-        ax.set_title(f"方位角-深度 TL 分布 @ r={r_max:.1f}m, {cfg.frequency/1e9:.1f} GHz")
-        fig.tight_layout()
-        return fig
-
-    def _fig_tl_vs_range(self, r, TL_line, cfg):
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(r, TL_line, "b-", linewidth=1.5)
-        ax.set_xlabel("距离 r (m)")
-        ax.set_ylabel("传输损耗 TL (dB)")
-        ax.set_title(f"路径损耗 vs 距离 @ z={cfg.antenna_pos[2]:.1f}m (天线高度)")
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-        return fig
-
-    def _fig_E_vs_height(self, z, E_line, TL_line, cfg):
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-        E_db = 20 * np.log10(np.maximum(E_line, 1e-15))
-        ax1.plot(E_db, z, "r-", linewidth=1.5)
-        ax1.set_xlabel("|E| (dB)")
-        ax1.set_ylabel("高度 z (m)")
-        ax1.set_title("电场 vs 高度")
-        ax1.grid(True, alpha=0.3)
-        ax2.plot(TL_line, z, "b-", linewidth=1.5)
-        ax2.set_xlabel("TL (dB)")
-        ax2.set_title("传输损耗 vs 高度")
-        ax2.grid(True, alpha=0.3)
-        fig.suptitle(f"垂直剖面 @ 最远距离 r={self._data['r_vals'][-1]:.1f}m")
-        fig.tight_layout()
-        return fig
-
-    def _fig_3d(self, R, Z, TL, cfg):
-        from mpl_toolkits.mplot3d import Axes3D
-        fig = plt.figure(figsize=(9, 6))
-        ax = fig.add_subplot(111, projection="3d")
-        step_r = max(1, R.shape[0] // 80)
-        step_z = max(1, R.shape[1] // 80)
-        Rs, Zs, Ts = R[::step_r, ::step_z], Z[::step_r, ::step_z], TL[::step_r, ::step_z]
-        surf = ax.plot_surface(Rs, Zs, Ts, cmap="jet", alpha=0.85, linewidth=0)
-        fig.colorbar(surf, ax=ax, label="TL (dB)", shrink=0.6)
-        ax.set_xlabel("r (m)")
-        ax.set_ylabel("z (m)")
-        ax.set_zlabel("TL (dB)")
-        ax.set_title(f"TL 3D 表面 @ {cfg.frequency/1e9:.1f} GHz")
-        fig.tight_layout()
-        return fig
-
-    # ═══════════════════════════════════════
-    #  导出
-    # ═══════════════════════════════════════
-
     def _export_current(self):
         idx = self._tabs.currentIndex()
-        if idx < 0 or idx >= len(self._figures):
-            return
+        if idx < 0 or idx >= len(self._figures): return
         title, fig = self._figures[idx]
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, f"导出 — {title}", f"{title}.png",
-            "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
-        )
+            "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)")
         if path:
             fig.savefig(path, dpi=150, bbox_inches="tight")
 
     def _export_all(self):
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, "选择导出目录")
-        if not folder:
-            return
+        if not folder: return
         import os
         for i, (title, fig) in enumerate(self._figures):
-            name = f"{i+1:02d}_{title}.png"
-            fig.savefig(os.path.join(folder, name), dpi=150, bbox_inches="tight")
+            fig.savefig(os.path.join(folder, f"{i+1:02d}_{title}.png"), dpi=150, bbox_inches="tight")
