@@ -145,7 +145,12 @@ class PlotDialog(QtWidgets.QDialog):
                 ri = np.argmin(np.abs(r - r_fix.value()))
                 u_slice = np.abs(u[ri,:,:]); u_ref = u_slice.max() or 1e-30
                 TL = -20*np.log10(np.maximum(u_slice/u_ref,1e-15)) + 10*np.log10(max(r[ri]/r0,1.0))
-                phi_deg = np.degrees(phi); P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
+                # phi: 0-360 → -90..90 convention (0°=+x, +90°=+y, -90°=-y)
+                phi_deg = np.degrees(phi)
+                phi_deg = np.where(phi_deg > 180, phi_deg - 360, phi_deg)
+                mask = (phi_deg >= -90) & (phi_deg <= 90)
+                phi_deg = phi_deg[mask]; TL = TL[mask, :]
+                P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
                 figs.append((f"φ-z TL分布 r={r[ri]:.1f}m", self._contour(P,Zp,TL,"TL (dB)",f"φ-z TL分布 r={r[ri]:.1f}m","jet",cfg)))
 
             elif key == "tl_vs_r":
