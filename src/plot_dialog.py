@@ -217,8 +217,11 @@ class PlotDialog(QtWidgets.QDialog):
         span = vmax - vmin
         if span < 1: vmax = vmin + 10
 
-        # 用 turbo 替代 jet（感知均匀，无虚假边界）
-        _cmap = plt.cm.turbo if cmap == "jet" else plt.cm.inferno
+        # colormap: TL用hot(红=高损耗), 电场用inferno
+        if "TL" in cbar_label or "损耗" in title:
+            _cmap = plt.cm.hot
+        else:
+            _cmap = plt.cm.inferno
 
         # pcolormesh + Gouraud 平滑 → 无锯齿、无漏白
         cf = ax.pcolormesh(X, Y, data, shading="gouraud", cmap=_cmap,
