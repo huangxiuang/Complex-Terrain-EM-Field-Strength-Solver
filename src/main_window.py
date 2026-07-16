@@ -39,7 +39,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plotter_actors = {}
         self._pending_rx_points = []
         self._current_scene_key = "metal_barrier"
-        self._last_field_data = None   # 最近一次求解的完整场数据
+        self._last_field_data = None
+        self._last_results = None      # 最近一次求解结果
+
+        # ── 左侧树形面板 ──
+        self._tree = QtWidgets.QTreeWidget()
+        self._tree.setHeaderHidden(True)
+        self._tree.setMinimumWidth(200)
+        self._tree.setMaximumWidth(320)
+        self._tree.itemDoubleClicked.connect(self._on_tree_double_click)
+
+        self._tree_rx_root = QtWidgets.QTreeWidgetItem(["📁 测量点"])
+        self._tree_func_root = QtWidgets.QTreeWidgetItem(["⚙ 功能"])
+        self._tree.addTopLevelItem(self._tree_rx_root)
+        self._tree.addTopLevelItem(self._tree_func_root)
+        self._tree_rx_root.setExpanded(True)
+        self._tree_func_root.setExpanded(True)
+
+        solve_item = QtWidgets.QTreeWidgetItem(["⚡ 求解"])
+        solve_item.setData(0, QtCore.Qt.UserRole, "solve")
+        self._tree_func_root.addChild(solve_item)
+        plot_item = QtWidgets.QTreeWidgetItem(["📊 画图"])
+        plot_item.setData(0, QtCore.Qt.UserRole, "plot")
+        self._tree_func_root.addChild(plot_item)
+
+        dock = QtWidgets.QDockWidget("导航", self)
+        dock.setWidget(self._tree)
+        dock.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
+        self.addDockWidget(QtCore.Qt.LeftDockWidgetArea, dock)
 
         # ── Central 3D viewport ──
         self.plotter = pvqt.QtInteractor(self)
@@ -55,6 +82,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage(
             "就绪  |  左键旋转 · 滚轮缩放 · 中键平移  |  工具 → 求解电场功能"
         )
+        self._update_rx_tree()
 
         self.show()
 
@@ -206,6 +234,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._pending_rx_points = pts
             self._draw_rx_markers()
             self._update_solve_ui()
+            self._update_rx_tree()
 
     def _on_precise_rx(self):
         ant_obj = self.scene_objects.get("antenna")
@@ -219,6 +248,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._pending_rx_points = pts
             self._draw_rx_markers()
             self._update_solve_ui()
+            self._update_rx_tree()
 
     def _on_manage_rx(self):
         dlg = RxManageDialog(self, self._pending_rx_points)
@@ -226,6 +256,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._pending_rx_points = dlg.get_points()
             self._draw_rx_markers()
             self._update_solve_ui()
+            self._update_rx_tree()
             if not self._pending_rx_points:
                 self._clear_rx_markers()
 
@@ -243,6 +274,70 @@ class MainWindow(QtWidgets.QMainWindow):
             if name.startswith("__rx_"):
                 self.plotter.remove_actor(self.plotter_actors.pop(name))
         self.plotter.render()
+
+    def _update_rx_tree(self):
+        self._tree_rx_root.takeChildren()
+        if not self._pending_rx_points:
+            item = QtWidgets.QTreeWidgetItem(["(无测量点)"])
+            item.setFlags(item.flags() & ~QtCore.Qt.ItemIsSelectable)
+            self._tree_rx_root.addChild(item)
+        else:
+            for i, (x, y, z) in enumerate(self._pending_rx_points):
+                item = QtWidgets.QTreeWidgetItem([f"点{i+1}: ({x:.2f}, {y:.2f}, {z:.2f})"])
+                item.setData(0, QtCore.Qt.UserRole, f"rx:{i}")
+                self._tree_rx_root.addChild(item)
+
+    def _update_results_tree(self, results):
+        for i in range(self._tree.topLevelItemCount() - 1, -1, -1):
+            if self._tree.topLevelItem(i).text(0).startswith("📊"):
+                self._tree.takeTopLevelItem(i)
+        if not results:
+            return
+        root = QtWidgets.QTreeWidgetItem([f"📊 Results ({len(results)}点)"])
+        for i, r in enumerate(results):
+            d = r["path_loss_dB"] - r["L_fs_dB"]
+            rx_item = QtWidgets.QTreeWidgetItem([f"点{i+1}: Δ={d:+.1f}dB"])
+            rx_item.setData(0, QtCore.Qt.UserRole, f"result:{i}")
+            for c in [
+                f"L_fs: {r['L_fs_dB']:.2f} dB",
+                f"L_pe: {r['path_loss_dB']:.2f} dB",
+                f"E_rx: {r['E_rx_vm']:.4e} V/m",
+                f"E: {r['E_rx_dbuv']:.1f} dBμV/m",
+                f"距离: {r['dist']:.2f} m",
+            ]:
+                rx_item.addChild(QtWidgets.QTreeWidgetItem([c]))
+            root.addChild(rx_item)
+        table_item = QtWidgets.QTreeWidgetItem(["📋 查看完整结果表"])
+        table_item.setData(0, QtCore.Qt.UserRole, "result_table")
+        root.addChild(table_item)
+        self._tree.addTopLevelItem(root)
+        root.setExpanded(True)
+
+    def _on_tree_double_click(self, item, col):
+        role = item.data(0, QtCore.Qt.UserRole)
+        if role == "solve": self._on_solve()
+        elif role == "plot": self._on_plot()
+        elif role and role.startswith("rx:"):
+            idx = int(role.split(":")[1])
+            if idx < len(self._pending_rx_points):
+                x, y, z = self._pending_rx_points[idx]
+                self.statusBar().showMessage(f"点{idx+1}: ({x:.3f}, {y:.3f}, {z:.3f})")
+        elif role and role.startswith("result:"):
+            idx = int(role.split(":")[1])
+            if self._last_results and idx < len(self._last_results):
+                r = self._last_results[idx]
+                QtWidgets.QMessageBox.information(self, f"点{idx+1} 求解结果",
+                    f"L_fs = {r['L_fs_dB']:.2f} dB\n"
+                    f"L_pe = {r['path_loss_dB']:.2f} dB\n"
+                    f"Δ = {r['path_loss_dB']-r['L_fs_dB']:+.2f} dB\n"
+                    f"E_rx = {r['E_rx_vm']:.4e} V/m\n"
+                    f"E = {r['E_rx_dbuv']:.1f} dBμV/m\n"
+                    f"距离 = {r['dist']:.2f} m")
+        elif role == "result_table" and self._last_results:
+            from src.field_dialog import FieldResultDialog
+            ant_obj = self.scene_objects.get("antenna")
+            tx = tuple(ant_obj["extra"]["position"]) if ant_obj else (-5, 0, 6)
+            FieldResultDialog(self, self._last_results, tx, 2.8e9).exec_()
 
     def _update_solve_ui(self):
         n = len(self._pending_rx_points)
@@ -269,6 +364,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.plotter.remove_actor(self.plotter_actors.pop(name))
         self.scene_objects.clear()
         self._pending_rx_points.clear()
+        self._last_results = None
+        self._last_field_data = None
+        self._update_results_tree(None)
+        self._update_rx_tree()
         self._update_solve_ui()
 
         # 加载新场景
@@ -365,6 +464,9 @@ class MainWindow(QtWidgets.QMainWindow):
         progress.close()
         QtWidgets.QApplication.restoreOverrideCursor()
         self.statusBar().showMessage(f"计算完成 — {len(results)} 个点")
+
+        self._last_results = results
+        self._update_results_tree(results)
 
         rdlg = FieldResultDialog(self, results, tx, freq)
         rdlg.exec_()
