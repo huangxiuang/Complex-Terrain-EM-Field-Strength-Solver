@@ -102,9 +102,8 @@ class PlotDialog(QtWidgets.QDialog):
         btn.addWidget(btn_close)
         layout.addLayout(btn)
 
-        # 结果区: 标签页
-        self._tabs = QtWidgets.QTabWidget()
-        layout.addWidget(self._tabs, 1)
+        # 结果区: 占位（图在新窗口显示）
+        layout.addStretch(0)
 
     def _on_check_changed(self, item):
         key = item.data(QtCore.Qt.UserRole)
@@ -115,108 +114,84 @@ class PlotDialog(QtWidgets.QDialog):
                 break
 
     def _generate(self):
-        self._tabs.clear()
-        self._figures.clear()
+        figs = []
         d = self._data
-        u = d["u_total"]  # (nr, nphi, nz)
-        r = d["r_vals"]
-        z = d["z_vals"]
-        phi = d["phi_vals"]
-        cfg = d["config"]
-        r0 = r[0]
+        u = d["u_total"]; r = d["r_vals"]; z = d["z_vals"]; phi = d["phi_vals"]
+        cfg = d["config"]; r0 = r[0]
 
         for i in range(self._list.count()):
             item = self._list.item(i)
-            if item.checkState() != QtCore.Qt.Checked:
-                continue
+            if item.checkState() != QtCore.Qt.Checked: continue
             key = item.data(QtCore.Qt.UserRole)
             pw = self._param_pages.get(key, {})
 
-            if key == "rz_tl" or key == "rz_field":
-                phi_deg = pw.get("phi_deg", None)
+            if key in ("rz_tl", "rz_field"):
+                phi_deg = pw.get("phi_deg"); 
                 if phi_deg is None: continue
-                phi_target = np.radians(phi_deg.value())
-                pi = np.argmin(np.abs(phi - phi_target))
-                u_slice = np.abs(u[:, pi, :])  # (nr, nz)
-                R, Z = np.meshgrid(r, z, indexing="ij")
-
+                pi = np.argmin(np.abs(phi - np.radians(phi_deg.value())))
+                u_slice = np.abs(u[:, pi, :]); R, Z = np.meshgrid(r, z, indexing="ij")
                 if key == "rz_tl":
-                    u_ref = u_slice[0, :].max() or 1e-30
-                    TL = -20 * np.log10(np.maximum(u_slice / u_ref, 1e-15))
-                    for ri in range(len(r)):
-                        TL[ri, :] += 10 * np.log10(max(r[ri] / r0, 1.0))
-                    title = f"r-z TL分布 φ={phi_deg.value():.0f}°"
-                    fig = self._contour(R, Z, TL, "TL (dB)", title, "jet", cfg)
+                    u_ref = u_slice[0,:].max() or 1e-30
+                    TL = -20*np.log10(np.maximum(u_slice/u_ref, 1e-15))
+                    for ri in range(len(r)): TL[ri,:] += 10*np.log10(max(r[ri]/r0,1.0))
+                    figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,TL,"TL (dB)",f"r-z TL分布 φ={phi_deg.value():.0f}°","jet",cfg)))
                 else:
-                    E_db = 20 * np.log10(np.maximum(u_slice, 1e-15))
-                    title = f"r-z 电场分布 φ={phi_deg.value():.0f}°"
-                    fig = self._contour(R, Z, E_db, "|E| (dB)", title, "hot", cfg)
-                self._add_tab(title, fig)
+                    E_db = 20*np.log10(np.maximum(u_slice,1e-15))
+                    figs.append((f"r-z 电场分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,E_db,"|E| (dB)",f"r-z 电场分布 φ={phi_deg.value():.0f}°","hot",cfg)))
 
             elif key == "phiz_tl":
-                r_fix = pw.get("r_fix", None)
+                r_fix = pw.get("r_fix"); 
                 if r_fix is None: continue
                 ri = np.argmin(np.abs(r - r_fix.value()))
-                u_slice = np.abs(u[ri, :, :])  # (nphi, nz)
-                u_ref = u_slice.max() or 1e-30
-                TL = -20 * np.log10(np.maximum(u_slice / u_ref, 1e-15))
-                TL += 10 * np.log10(max(r[ri] / r0, 1.0))
-                phi_deg = np.degrees(phi)
-                P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
-                title = f"φ-z TL分布 r={r[ri]:.1f}m"
-                fig = self._contour(P, Zp, TL, "TL (dB)", title, "jet", cfg)
-                self._add_tab(title, fig)
+                u_slice = np.abs(u[ri,:,:]); u_ref = u_slice.max() or 1e-30
+                TL = -20*np.log10(np.maximum(u_slice/u_ref,1e-15)) + 10*np.log10(max(r[ri]/r0,1.0))
+                phi_deg = np.degrees(phi); P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
+                figs.append((f"φ-z TL分布 r={r[ri]:.1f}m", self._contour(P,Zp,TL,"TL (dB)",f"φ-z TL分布 r={r[ri]:.1f}m","jet",cfg)))
 
             elif key == "tl_vs_r":
-                z_fix = pw.get("z_fix", None)
+                z_fix = pw.get("z_fix"); 
                 if z_fix is None: continue
                 zi = np.argmin(np.abs(z - z_fix.value()))
-                u_line = np.abs(u[:, 0, zi])
-                u_ref = u_line[0] if u_line[0] > 0 else 1e-30
-                TL = -20 * np.log10(np.maximum(u_line / u_ref, 1e-15))
-                for ri in range(len(r)):
-                    TL[ri] += 10 * np.log10(max(r[ri] / r0, 1.0))
+                u_line = np.abs(u[:,0,zi]); u_ref = u_line[0] if u_line[0]>0 else 1e-30
+                TL = -20*np.log10(np.maximum(u_line/u_ref,1e-15))
+                for ri in range(len(r)): TL[ri] += 10*np.log10(max(r[ri]/r0,1.0))
                 title = f"路径损耗 vs 距离 z={z[zi]:.1f}m"
-                fig, ax = plt.subplots(figsize=(8, 4))
-                ax.plot(r, TL, "b-", linewidth=1.5)
-                ax.set_xlabel("距离 r (m)"); ax.set_ylabel("TL (dB)")
-                ax.set_title(title); ax.grid(True, alpha=0.3)
-                fig.tight_layout()
-                self._add_tab(title, fig)
+                fig, ax = plt.subplots(figsize=(9,5))
+                ax.plot(r, TL, "b-", linewidth=1.5); ax.set_xlabel("距离 r (m)"); ax.set_ylabel("TL (dB)")
+                ax.set_title(title); ax.grid(True, alpha=0.3); fig.tight_layout()
+                figs.append((title, fig))
 
             elif key == "e_vs_z":
-                r_fix = pw.get("r_fix", None)
+                r_fix = pw.get("r_fix"); 
                 if r_fix is None: continue
                 ri = np.argmin(np.abs(r - r_fix.value()))
-                E_line = np.abs(u[ri, 0, :])
-                E_db = 20 * np.log10(np.maximum(E_line, 1e-15))
+                E_db = 20*np.log10(np.maximum(np.abs(u[ri,0,:]),1e-15))
                 title = f"场强 vs 高度 r={r[ri]:.1f}m"
-                fig, ax = plt.subplots(figsize=(6, 5))
-                ax.plot(E_db, z, "r-", linewidth=1.5)
-                ax.set_xlabel("|E| (dB)"); ax.set_ylabel("高度 z (m)")
-                ax.set_title(title); ax.grid(True, alpha=0.3)
-                fig.tight_layout()
-                self._add_tab(title, fig)
+                fig, ax = plt.subplots(figsize=(6,6))
+                ax.plot(E_db, z, "r-", linewidth=1.5); ax.set_xlabel("|E| (dB)"); ax.set_ylabel("高度 z (m)")
+                ax.set_title(title); ax.grid(True, alpha=0.3); fig.tight_layout()
+                figs.append((title, fig))
 
             elif key == "tl_3d":
-                pi0 = 0
-                u_slice = np.abs(u[:, pi0, :])
-                u_ref = u_slice[0, :].max() or 1e-30
-                TL = -20 * np.log10(np.maximum(u_slice / u_ref, 1e-15))
-                for ri in range(len(r)):
-                    TL[ri, :] += 10 * np.log10(max(r[ri] / r0, 1.0))
-                R, Z = np.meshgrid(r, z, indexing="ij")
-                title = "TL 3D 表面"
+                pi0=0; u_slice=np.abs(u[:,pi0,:]); u_ref=u_slice[0,:].max() or 1e-30
+                TL=-20*np.log10(np.maximum(u_slice/u_ref,1e-15))
+                for ri in range(len(r)): TL[ri,:]+=10*np.log10(max(r[ri]/r0,1.0))
+                R,Z=np.meshgrid(r,z,indexing="ij");title="TL 3D 表面"
                 from mpl_toolkits.mplot3d import Axes3D
-                fig = plt.figure(figsize=(9, 6))
-                ax = fig.add_subplot(111, projection="3d")
-                sr = max(1, len(r)//80); sz = max(1, len(z)//80)
-                surf = ax.plot_surface(R[::sr,::sz], Z[::sr,::sz], TL[::sr,::sz],
-                                       cmap="jet", alpha=0.85, linewidth=0)
-                fig.colorbar(surf, ax=ax, label="TL (dB)", shrink=0.6)
-                ax.set_xlabel("r (m)"); ax.set_ylabel("z (m)"); ax.set_zlabel("TL (dB)")
-                ax.set_title(title); fig.tight_layout()
-                self._add_tab(title, fig)
+                fig=plt.figure(figsize=(10,7));ax=fig.add_subplot(111,projection="3d")
+                sr=max(1,len(r)//80);sz=max(1,len(z)//80)
+                surf=ax.plot_surface(R[::sr,::sz],Z[::sr,::sz],TL[::sr,::sz],cmap="jet",alpha=0.85,linewidth=0)
+                fig.colorbar(surf,ax=ax,label="TL (dB)",shrink=0.6)
+                ax.set_xlabel("r (m)");ax.set_ylabel("z (m)");ax.set_zlabel("TL (dB)");ax.set_title(title);fig.tight_layout()
+                figs.append((title,fig))
+
+        if not figs:
+            QtWidgets.QMessageBox.information(self, "提示", "请至少勾选一种图类型")
+            return
+
+        # 在新独立窗口显示
+        self._viewer = FigureViewer(figs, self)
+        self._viewer.show()
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -231,23 +206,46 @@ class PlotDialog(QtWidgets.QDialog):
         fig.tight_layout()
         return fig
 
-    def _add_tab(self, title, fig):
-        self._figures.append((title, fig))
-        w = QtWidgets.QWidget()
-        lo = QtWidgets.QVBoxLayout(w)
-        canvas = FigureCanvasQTAgg(fig)
-        lo.addWidget(canvas)
-        self._tabs.addTab(w, title)
 
-    def _export_current(self):
-        idx = self._tabs.currentIndex()
+class FigureViewer(QtWidgets.QDialog):
+    """独立大窗口，标签页显示生成的图。"""
+
+    def __init__(self, figures, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("绘图结果")
+        self.resize(1000, 700)
+        self._figures = figures
+
+        layout = QtWidgets.QVBoxLayout(self)
+        tabs = QtWidgets.QTabWidget()
+        for title, fig in figures:
+            w = QtWidgets.QWidget()
+            lo = QtWidgets.QVBoxLayout(w)
+            canvas = FigureCanvasQTAgg(fig)
+            lo.addWidget(canvas)
+            tabs.addTab(w, title)
+        layout.addWidget(tabs, 1)
+
+        btn = QtWidgets.QHBoxLayout()
+        btn_export = QtWidgets.QPushButton("导出当前图…")
+        btn_export.clicked.connect(lambda: self._export(tabs.currentIndex()))
+        btn.addWidget(btn_export)
+        btn_export_all = QtWidgets.QPushButton("导出全部…")
+        btn_export_all.clicked.connect(self._export_all)
+        btn.addWidget(btn_export_all)
+        btn.addStretch()
+        btn_close = QtWidgets.QPushButton("关闭")
+        btn_close.clicked.connect(self.accept)
+        btn.addWidget(btn_close)
+        layout.addLayout(btn)
+        self._tabs = tabs
+
+    def _export(self, idx):
         if idx < 0 or idx >= len(self._figures): return
         title, fig = self._figures[idx]
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, f"导出 — {title}", f"{title}.png",
-            "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)")
-        if path:
-            fig.savefig(path, dpi=150, bbox_inches="tight")
+            self, f"导出 — {title}", f"{title}.png", "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)")
+        if path: fig.savefig(path, dpi=150, bbox_inches="tight")
 
     def _export_all(self):
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, "选择导出目录")
