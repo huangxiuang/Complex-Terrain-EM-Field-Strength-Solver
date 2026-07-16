@@ -124,9 +124,11 @@ class PlotDialog(QtWidgets.QDialog):
                 pi = np.argmin(np.abs(phi - np.radians(phi_deg.value())))
                 u_slice = np.abs(u[:, pi, :]); R, Z = np.meshgrid(r, z, indexing="ij")
                 if key == "rz_tl":
-                    u_ref = u_slice[0,:].max() or 1e-30
-                    TL = -20*np.log10(np.maximum(u_slice/u_ref, 1e-15))
-                    for ri in range(len(r)): TL[ri,:] += 10*np.log10(max(r[ri]/r0,1.0))
+                    # 统一参考：r0 处天线高度 φ=0
+                    zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
+                    E_ref = np.abs(u[0, pi, zi_ant]) or 1e-30
+                    TL = -20*np.log10(np.maximum(u_slice/E_ref, 1e-15))
+                    for ri2 in range(len(r)): TL[ri2,:] += 10*np.log10(max(r[ri2]/r0, 1.0))
                     TL = np.nan_to_num(TL, nan=200, posinf=200, neginf=0)
                     figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,TL,"TL (dB)",f"r-z TL分布 φ={phi_deg.value():.0f}°","jet",cfg)))
                 else:
@@ -135,13 +137,17 @@ class PlotDialog(QtWidgets.QDialog):
                     figs.append((f"r-z 电场分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,E_db,"|E| (dB)",f"r-z 电场分布 φ={phi_deg.value():.0f}°","hot",cfg)))
 
             elif key == "phiz_tl":
-                r_fix = pw.get("r_fix"); 
+                r_fix = pw.get("r_fix")
                 if r_fix is None: continue
                 ri = np.argmin(np.abs(r - r_fix.value()))
-                u_slice = np.abs(u[ri,:,:]); u_ref = u_slice.max() or 1e-30
-                TL = -20*np.log10(np.maximum(u_slice/u_ref,1e-15)) + 10*np.log10(max(r[ri]/r0,1.0))
+                u_slice = np.abs(u[ri,:,:])  # (nphi, nz)
+                # 参考：r0 处天线高度 φ=0
+                zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
+                E_ref = np.abs(u[0, 0, zi_ant]) or 1e-30
+                TL = -20*np.log10(np.maximum(u_slice/E_ref, 1e-15))
+                TL += 10*np.log10(max(r[ri]/r0, 1.0))
                 TL = np.nan_to_num(TL, nan=200, posinf=200, neginf=0)
-                # phi: 0-360 → -90..90 convention (0°=+x, +90°=+y, -90°=-y)
+                # phi: 0-360 → -90..90 convention
                 phi_deg = np.degrees(phi)
                 phi_deg = np.where(phi_deg > 180, phi_deg - 360, phi_deg)
                 mask = (phi_deg >= -90) & (phi_deg <= 90)
