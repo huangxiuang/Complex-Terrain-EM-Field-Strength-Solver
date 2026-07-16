@@ -225,7 +225,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         pts = dlg.get_points()
         if pts:
-            self._pending_rx_points = pts
+            self._pending_rx_points.extend(pts)
             self._draw_rx_markers()
             self._update_solve_ui()
             self._update_rx_tree()
@@ -239,7 +239,7 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         pts = dlg.get_points()
         if pts:
-            self._pending_rx_points = pts
+            self._pending_rx_points.extend(pts)
             self._draw_rx_markers()
             self._update_solve_ui()
             self._update_rx_tree()
