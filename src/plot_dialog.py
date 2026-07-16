@@ -111,6 +111,10 @@ class PlotDialog(QtWidgets.QDialog):
         d = self._data
         u = d["u_total"]; r = d["r_vals"]; z = d["z_vals"]; phi = d["phi_vals"]
         cfg = d["config"]; r0 = r[0]
+        # 高度裁剪到 12m（以上为天顶吸收层，无物理意义）
+        z_mask = z <= 12.0
+        z_plot = z[z_mask]
+        zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
 
         for i in range(self._list.count()):
             item = self._list.item(i)
@@ -122,7 +126,7 @@ class PlotDialog(QtWidgets.QDialog):
                 phi_deg = pw.get("phi_deg"); 
                 if phi_deg is None: continue
                 pi = np.argmin(np.abs(phi - np.radians(phi_deg.value())))
-                u_slice = np.abs(u[:, pi, :]); R, Z = np.meshgrid(r, z, indexing="ij")
+                u_slice = np.abs(u[:, pi, :])[:, z_mask]; R, Z = np.meshgrid(r, z_plot, indexing="ij")
                 if key == "rz_tl":
                     # 统一参考：r0 处天线高度 φ=0
                     zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
@@ -140,7 +144,7 @@ class PlotDialog(QtWidgets.QDialog):
                 r_fix = pw.get("r_fix")
                 if r_fix is None: continue
                 ri = np.argmin(np.abs(r - r_fix.value()))
-                u_slice = np.abs(u[ri,:,:])  # (nphi, nz)
+                u_slice = np.abs(u[ri,:,:])[:, z_mask]  # (nphi, nz_cut)
                 # 参考：r0 处天线高度 φ=0
                 zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
                 E_ref = np.abs(u[0, 0, zi_ant]) or 1e-30
@@ -155,7 +159,7 @@ class PlotDialog(QtWidgets.QDialog):
                 # 重排序：phi必须单调递增，pcolormesh才能正确渲染
                 sort_idx = np.argsort(phi_deg)
                 phi_deg = phi_deg[sort_idx]; TL = TL[sort_idx, :]
-                P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
+                P, Zp = np.meshgrid(phi_deg, z_plot, indexing="ij")
                 figs.append((f"φ-z TL分布 r={r[ri]:.1f}m", self._contour(P,Zp,TL,"TL (dB)",f"φ-z TL分布 r={r[ri]:.1f}m","jet",cfg)))
 
             elif key == "tl_vs_r":
@@ -175,19 +179,20 @@ class PlotDialog(QtWidgets.QDialog):
                 r_fix = pw.get("r_fix"); 
                 if r_fix is None: continue
                 ri = np.argmin(np.abs(r - r_fix.value()))
-                E_db = 20*np.log10(np.maximum(np.abs(u[ri,0,:]),1e-15))
+                E_db = 20*np.log10(np.maximum(np.abs(u[ri,0,:][z_mask]),1e-15))
                 E_db = np.nan_to_num(E_db, nan=-200, neginf=-200)
                 title = f"场强 vs 高度 r={r[ri]:.1f}m"
                 fig, ax = plt.subplots(figsize=(6,6))
-                ax.plot(E_db, z, "r-", linewidth=1.5); ax.set_xlabel("|E| (dB)"); ax.set_ylabel("高度 z (m)")
+                ax.plot(E_db, z_plot, "r-", linewidth=1.5); ax.set_xlabel("|E| (dB)"); ax.set_ylabel("高度 z (m)")
                 ax.set_title(title); ax.grid(True, alpha=0.3); fig.tight_layout()
                 figs.append((title, fig))
 
             elif key == "tl_3d":
-                pi0=0; u_slice=np.abs(u[:,pi0,:]); u_ref=u_slice[0,:].max() or 1e-30
-                TL=-20*np.log10(np.maximum(u_slice/u_ref,1e-15))
+                pi0=0; u_slice=np.abs(u[:,pi0,:])[:, z_mask]
+                E_ref = np.abs(u[0, 0, zi_ant]) or 1e-30
+                TL=-20*np.log10(np.maximum(u_slice/E_ref,1e-15))
                 for ri in range(len(r)): TL[ri,:]+=10*np.log10(max(r[ri]/r0,1.0))
-                R,Z=np.meshgrid(r,z,indexing="ij");title="TL 3D 表面"
+                R,Z=np.meshgrid(r,z_plot,indexing="ij");title="TL 3D 表面"
                 from mpl_toolkits.mplot3d import Axes3D
                 fig=plt.figure(figsize=(10,7));ax=fig.add_subplot(111,projection="3d")
                 sr=max(1,len(r)//80);sz=max(1,len(z)//80)
