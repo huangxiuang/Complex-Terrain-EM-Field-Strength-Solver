@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EM Solver — 用户使用指南</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'PingFang SC','Heiti SC','Microsoft YaHei',sans-serif;line-height:1.8;color:#333;background:#f5f5f5}
+nav{position:fixed;top:0;left:0;width:240px;height:100vh;background:#1a1a2e;color:#fff;overflow-y:auto;padding:20px 0;z-index:100}
+nav h2{text-align:center;font-size:16px;padding:10px 20px;border-bottom:1px solid #333;margin-bottom:10px}
+nav a{display:block;padding:8px 24px;color:#aaa;text-decoration:none;font-size:14px;border-left:3px solid transparent;transition:.2s}
+nav a:hover,nav a.active{color:#fff;border-left-color:#2196F3;background:rgba(33,150,243,.1)}
+main{margin-left:240px;padding:40px;max-width:1000px}
+h1{font-size:28px;color:#1a1a2e;border-bottom:3px solid #2196F3;padding-bottom:12px;margin-bottom:30px}
+h2{font-size:22px;color:#1a1a2e;margin:40px 0 16px;padding-left:12px;border-left:4px solid #2196F3}
+h3{font-size:17px;color:#444;margin:24px 0 10px}
+p{margin:8px 0}
+code{background:#e8e8e8;padding:2px 6px;border-radius:3px;font-size:13px}
+pre{background:#1a1a2e;color:#a8d8a8;padding:16px 20px;border-radius:6px;overflow-x:auto;margin:12px 0;font-size:13px;line-height:1.6}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}
+th{background:#2196F3;color:#fff}
+tr:nth-child(even){background:#f9f9f9}
+.kbd{background:#e8e8e8;border:1px solid #ccc;border-radius:4px;padding:2px 8px;font-size:12px}
+.note{background:#e3f2fd;border-left:4px solid #2196F3;padding:12px 16px;margin:12px 0;border-radius:0 4px 4px 0}
+.warn{background:#fff3e0;border-left:4px solid #ff9800;padding:12px 16px;margin:12px 0;border-radius:0 4px 4px 0}
+img{max-width:100%;border-radius:6px;margin:12px 0;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>EM Solver 指南</h2>
+  <a href="#quickstart">快速开始</a>
+  <a href="#interface">界面概览</a>
+  <a href="#scene">场景管理</a>
+  <a href="#points">测量点</a>
+  <a href="#solver">求解</a>
+  <a href="#plots">画图</a>
+  <a href="#sweep">扫频模式</a>
+  <a href="#antenna">天线设置</a>
+  <a href="#materials">材料参数</a>
+  <a href="#layers">图层管理</a>
+  <a href="#views">视图操作</a>
+  <a href="#output">输出字段</a>
+  <a href="#physics">物理说明</a>
+  <a href="#trouble">常见问题</a>
+</nav>
+
+<main>
+
+<h1>EM Solver — 用户使用指南</h1>
+
+<p>柱坐标系抛物方程（CPE）电磁场求解器，用于 2.8 GHz 频段地波传播与障碍物绕射分析。</p>
+
+<!-- ================ -->
+<h2 id="quickstart">快速开始</h2>
+
+<pre>pip install -r requirements.txt
+python src/main_window.py</pre>
+
+<p>启动后自动加载默认场景（金属挡板），窗口左侧为<b>树形导航</b>，中央为<b>3D 视图</b>，顶部为<b>菜单栏</b>，底部为<b>状态栏</b>。</p>
+
+<!-- ================ -->
+<h2 id="interface">界面概览</h2>
+
+<h3>左侧树形导航</h3>
+<table>
+<tr><th>节点</th><th>子项</th><th>操作</th></tr>
+<tr><td>📁 测量点</td><td>点1, 点2, …</td><td>右键 🗑删除 / 双击编辑坐标</td></tr>
+<tr><td>⚙ 功能</td><td>➕添加 / ⚡求解 / 📊画图</td><td>双击执行对应功能</td></tr>
+<tr><td>📊 Results</td><td>求解后出现，每点详情</td><td>双击弹窗 / 📋查看完整结果表</td></tr>
+</table>
+
+<h3>工具栏</h3>
+<p>求解按钮右侧依次为：<b>⚡求解</b>、<b>📊画图</b>、待求解点数标签。</p>
+
+<!-- ================ -->
+<h2 id="scene">场景管理</h2>
+
+<p>菜单 <b>场景 → 场景选择</b> 打开场景列表，可选：</p>
+
+<table>
+<tr><th>场景</th><th>内容</th><th>用途</th></tr>
+<tr><td>金属挡板</td><td>平坦地面 + 铝墙 + 天线</td><td>经典 knife-edge 绕射</td></tr>
+<tr><td>自然景观</td><td>高斯山丘 + 正弦河道 + 植被 + 鸟 + 树 + 天线</td><td>复杂地形传播</td></tr>
+<tr><td>城市街区</td><td>平坦地面 + 4 栋混凝土建筑 + 天线</td><td>城区多径与遮挡</td></tr>
+</table>
+
+<p>切换场景会清空测量点和求解结果。菜单 <b>场景 → 场景属性</b> 查看当前场景所有对象的详细参数（材料、尺寸、位置）。</p>
+
+<!-- ================ -->
+<h2 id="points">测量点</h2>
+
+<h3>添加测量点</h3>
+<p>双击树中 <b>➕添加</b>，弹出精准添加对话框：</p>
+<ul>
+  <li><b>步骤 1/2</b>：在 XY 平面上点击添加点，或手动输入 X/Y 坐标</li>
+  <li><b>步骤 2/2</b>：在高度图上调整每个点的 Z 坐标</li>
+</ul>
+<p class="note">添加不会清除已有测量点。管理测量点（菜单 工具 → 管理测量点）可查看/编辑/删除全部点。</p>
+
+<h3>编辑/删除</h3>
+<ul>
+  <li><b>右键测量点</b> → 🗑删除（同步删除对应结果，编号自动顺位）</li>
+  <li><b>双击测量点</b> → 弹出 X/Y/Z 编辑框</li>
+</ul>
+
+<!-- ================ -->
+<h2 id="solver">求解</h2>
+
+<p>添加测量点后，双击树中 <b>⚡求解</b> 或点击工具栏按钮。</p>
+<p>求解完成后：</p>
+<ul>
+  <li>弹出 <b>结果表格</b>（可关闭）</li>
+  <li>树中出现 <b>📊 Results</b> 节点</li>
+  <li><b>📊画图</b> 按钮激活</li>
+</ul>
+
+<p class="warn">求解耗时与测量点数量无关——PE 必须从天线推到最远点，1 个点和 10 个点耗时相同。慢是因为进度条在格式化结果。</p>
+
+<!-- ================ -->
+<h2 id="plots">画图</h2>
+
+<p>求解后双击 <b>📊画图</b>，弹出参数设置窗口：</p>
+<ol>
+  <li><b>勾选</b>要生成的图类型（可多选）</li>
+  <li><b>设置参数</b>：r-z 图需选 φ 角（−90°~90°），φ-z 图需选距离 r，损耗曲线需选高度 z</li>
+  <li>点击 <b>▶生成</b></li>
+</ol>
+
+<p>生成后弹出<b>独立大窗口</b>（1000×700），标签页显示每张图：</p>
+
+<table>
+<tr><th>图</th><th>色标</th><th>说明</th></tr>
+<tr><td>r-z 传输损耗分布</td><td>jet（蓝→红）</td><td>距离-高度 TL 等高线，固定 φ</td></tr>
+<tr><td>r-z 电场分布</td><td>inferno</td><td>距离-高度 |E| 伪彩图</td></tr>
+<tr><td>φ-z 传输损耗分布</td><td>jet（蓝→红）</td><td>方位角-高度 TL，x 轴 −90°~90°</td></tr>
+<tr><td>路径损耗 vs 距离</td><td>—</td><td>固定高度处 TL 曲线</td></tr>
+<tr><td>场强 vs 高度</td><td>—</td><td>固定距离处 |E|+TL 双图</td></tr>
+<tr><td>TL 3D 表面</td><td>jet</td><td>三维曲面</td></tr>
+</table>
+
+<p>每张图可导出 <b>PNG / PDF / SVG</b>，也可一键导出全部。</p>
+
+<p class="note">绘图范围为"天线到最远测量点"之间的空间。地面以下及天顶吸收层无有效数据。TL 参考基准统一为 r₀ 处天线高度 φ=0 的场强。</p>
+
+<!-- ================ -->
+<h2 id="sweep">扫频模式</h2>
+
+<p>菜单 <b>工具 → 扫频模式（Ctrl+S）</b>：</p>
+<ul>
+  <li>设置频率范围、步数、线性/对数刻度</li>
+  <li><b>快速模式</b>（默认）：N_Z=1024, N_PHI=64，约 4× 加速</li>
+  <li>点击开始扫频，进度条实时显示</li>
+  <li>结果表格 + <b>绘制曲线</b> + <b>导出 CSV</b></li>
+</ul>
+
+<!-- ================ -->
+<h2 id="antenna">天线设置</h2>
+
+<p>菜单 <b>参数 → 天线设置</b>：</p>
+<ul>
+  <li>5 种天线类型：高斯波束 / 半波偶极子 / 微带贴片 / 喇叭 / 全向</li>
+  <li>可调参数：σ_z、俯角、HPBW</li>
+  <li>右侧实时预览<b>全圆方向图</b>（极坐标）</li>
+  <li>天线位置 X/Y/Z 可直接编辑（修改后 3D 标记同步更新）</li>
+</ul>
+
+<p>默认：高斯波束 σ=4.0m（垂直 HPBW≈110°）。</p>
+
+<!-- ================ -->
+<h2 id="materials">材料参数</h2>
+
+<p>菜单 <b>参数 → 材料参数设置</b>：</p>
+<ul>
+  <li>首行固定显示<b>空气</b>（ε_r=1.0006, σ=0），<b>可编辑</b>（模拟潮湿天气）</li>
+  <li>所有 EM 相关对象的 ε_r、σ、厚度均可调</li>
+  <li>修改后自动重算复折射率 Re(n)/Im(n)</li>
+  <li>支持导出/导入 JSON</li>
+</ul>
+
+<table>
+<tr><th>材料</th><th>ε_r</th><th>σ (S/m)</th><th>典型厚度</th></tr>
+<tr><td>空气</td><td>1.0006</td><td>0</td><td>—</td></tr>
+<tr><td>干燥土壤</td><td>15.0</td><td>0.01</td><td>—</td></tr>
+<tr><td>沙地</td><td>3.0</td><td>0.001</td><td>20 cm</td></tr>
+<tr><td>草地</td><td>12.0</td><td>0.005</td><td>30 cm</td></tr>
+<tr><td>水面（淡水）</td><td>80.0</td><td>0.01</td><td>100 cm</td></tr>
+<tr><td>混凝土</td><td>6.0</td><td>0.02</td><td>20 cm</td></tr>
+<tr><td>金属铝</td><td>1.0</td><td>3.8×10⁷</td><td>—</td></tr>
+</table>
+
+<p class="note">σ > 10⁵ 视为理想导体（PEC），场强直接清零。装饰对象（鸟、树、植被）不参与 EM 计算，不出现在材料列表中。</p>
+
+<!-- ================ -->
+<h2 id="layers">图层管理</h2>
+
+<p>菜单 <b>图层</b>：</p>
+<ul>
+  <li><b>增加图层</b>：选择材料 → 在 XY 平面上绘制形状（矩形/方形/三角/圆形/多边形），裁剪地形生成新图层</li>
+  <li><b>管理裁剪图层</b>：调整已创建图层的可见性和透明度</li>
+</ul>
+
+<!-- ================ -->
+<h2 id="views">视图操作</h2>
+
+<table>
+<tr><th>操作</th><th>方式</th></tr>
+<tr><td>旋转</td><td>鼠标左键拖拽</td></tr>
+<tr><td>缩放</td><td>鼠标滚轮</td></tr>
+<tr><td>平移</td><td>鼠标中键拖拽</td></tr>
+<tr><td>俯视/正视/侧视</td><td>菜单 视图 → 对应选项</td></tr>
+<tr><td>复位</td><td>菜单 视图 → 复位</td></tr>
+<tr><td>截图</td><td>菜单 视图 → 截图保存</td></tr>
+</table>
+
+<!-- ================ -->
+<h2 id="output">输出字段</h2>
+
+<table>
+<tr><th>字段</th><th>含义</th><th>单位</th></tr>
+<tr><td>dist</td><td>水平距离（圆柱坐标）</td><td>m</td></tr>
+<tr><td>L_fs_dB</td><td>自由空间损耗</td><td>dB</td></tr>
+<tr><td>path_loss_dB (L_pe)</td><td>PE 计算的总路径损耗</td><td>dB</td></tr>
+<tr><td>E_rx</td><td>接收电场幅度</td><td>V/m</td></tr>
+<tr><td>E_rx_dbuv</td><td>接收电场强度</td><td>dBμV/m</td></tr>
+</table>
+
+<p><b>Δ = L_pe − L_fs</b>：正值 = 额外损耗（绕射/吸收/天线方向图衰减），近 0 = 自由空间传播。</p>
+
+<!-- ================ -->
+<h2 id="physics">物理说明</h2>
+
+<h3>为什么近地损耗大？</h3>
+<p>三个效应叠加：天线方向图（主波束指向水平，低处能量先天不足）+ 地面反射在掠入射时相消（直达波和反射波等幅反相）+ DMFT 有损地面吸收。</p>
+
+<h3>为什么土山挡不住信号？</h3>
+<p>干燥土壤（ε_r=15, σ=0.01）对 2.8 GHz 穿透深度约 2m（−8.7 dB）。5m 山丘纯穿透损耗约 21 dB，但绕射从山顶以上填补阴影，实际额外损耗只有几 dB。要让山体有效阻挡，需湿土（σ=0.1）或金属障碍物。</p>
+
+<h3>TL 参考基准</h3>
+<p>所有传输损耗图统一参考 r=r₀ 处、天线高度、φ=0 的场强。不同方向/高度的 TL 都相对此基准计算。</p>
+
+<!-- ================ -->
+<h2 id="trouble">常见问题</h2>
+
+<h3>软件打不开</h3>
+<p>确保在项目根目录运行 <code>python src/main_window.py</code>，依赖已安装（<code>pip install -r requirements.txt</code>）。</p>
+
+<h3>等高线不显示</h3>
+<p>平坦地形（城市街区）高程差为 0，只显示单条等高线。自然景观有起伏才能看到多条。</p>
+
+<h3>画图颜色全是空白</h3>
+<p>确保先完成求解再画图。颜色空白说明场数据未就绪。</p>
+
+<h3>φ-z 图不对称</h3>
+<p>数据本身是对称的（±30° 结果相同），但需要重启 GUI 后重新求解再画图。旧版本存在排序 bug 已修复。</p>
+
+<h3>添加点后旧点消失</h3>
+<p>已修复——添加是追加而非覆盖。如仍遇到，检查是否误点了"管理测量点"。</p>
+
+<hr style="margin:40px 0">
+<p style="color:#999;font-size:13px">EM Solver v2.x — 柱坐标系抛物方程电磁场求解器</p>
+
+</main>
+</body>
+</html>
