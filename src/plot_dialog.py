@@ -214,12 +214,14 @@ class PlotDialog(QtWidgets.QDialog):
             fig.tight_layout(); return fig
         vmin = float(np.percentile(finite, 2))
         vmax = float(np.percentile(finite, 98))
+        if "TL" in cbar_label or "损耗" in title:
+            vmax = max(vmax, 180)  # TL图红区覆盖180+ dB
         span = vmax - vmin
         if span < 1: vmax = vmin + 10
 
-        # colormap: TL用hot(红=高损耗), 电场用inferno
+        # colormap: TL蓝→红(200dB深红), 电场inferno
         if "TL" in cbar_label or "损耗" in title:
-            _cmap = plt.cm.hot
+            _cmap = plt.cm.jet
         else:
             _cmap = plt.cm.inferno
 
