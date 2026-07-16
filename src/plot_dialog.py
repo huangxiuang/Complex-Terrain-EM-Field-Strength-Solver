@@ -196,26 +196,30 @@ class PlotDialog(QtWidgets.QDialog):
         self._viewer.show()
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, ax = plt.subplots(figsize=(10, 6))
         data = np.nan_to_num(data, nan=0.0, posinf=200, neginf=0)
+
+        # 色阶范围：p2-p98 百分位避免极端值过饱和
         finite = data[np.isfinite(data)]
-        if len(finite) == 0:
+        if len(finite) < 10:
             fig.tight_layout(); return fig
-        # 用百分位避免零场区极端值污染色阶
-        p5 = np.percentile(finite, 5)
-        p95 = np.percentile(finite, 95)
-        span = p95 - p5
-        if span < 1: span = 10
-        vmin = p5
-        vmax = min(p95, vmin + max(span, 40))
-        lev = np.linspace(vmin, vmax, 30)
-        cf = ax.contourf(X, Y, data, levels=lev, cmap=cmap, extend="both")
-        fig.colorbar(cf, ax=ax, label=cbar_label)
+        vmin = float(np.percentile(finite, 2))
+        vmax = float(np.percentile(finite, 98))
+        span = vmax - vmin
+        if span < 1: vmax = vmin + 10
+
+        # 用 turbo 替代 jet（感知均匀，无虚假边界）
+        _cmap = plt.cm.turbo if cmap == "jet" else plt.cm.inferno
+
+        # pcolormesh + Gouraud 平滑 → 无锯齿、无漏白
+        cf = ax.pcolormesh(X, Y, data, shading="gouraud", cmap=_cmap,
+                           vmin=vmin, vmax=vmax)
+        cbar = fig.colorbar(cf, ax=ax, label=cbar_label, extend="both")
         ax.set_xlabel("r (m)" if X.max() > 10 else "φ (°)")
         ax.set_ylabel("z (m)")
         ax.set_title(title)
-        if cfg.antenna_pos[2] <= Y.max():
-            ax.plot(0 if X.max() > 10 else 0, cfg.antenna_pos[2], "w*", markersize=8)
+        if 0 <= cfg.antenna_pos[2] <= Y.max():
+            ax.plot(0, cfg.antenna_pos[2], "w*", markersize=10, markeredgecolor="k", markeredgewidth=0.5)
         fig.tight_layout()
         return fig
 
