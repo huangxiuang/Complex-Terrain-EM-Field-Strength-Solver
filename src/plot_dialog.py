@@ -188,12 +188,15 @@ class PlotDialog(QtWidgets.QDialog):
             return
 
         # 在新独立窗口显示
-        self._viewer = FigureViewer(figs, self)
+        self._viewer = FigureViewer(figs, self, self._data)
         self._viewer.show()
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(8, 5))
-        lev = np.linspace(data.min(), min(data.max(), data.min() + 80), 30)
+        # 裁剪合理范围，去除地下/天顶的极端值
+        vmin = max(data[data < 200].min() if (data < 200).any() else 0, 0)
+        vmax = min(data.max(), vmin + 80)
+        lev = np.linspace(vmin, vmax, 30)
         cf = ax.contourf(X, Y, data, levels=lev, cmap=cmap, extend="both")
         fig.colorbar(cf, ax=ax, label=cbar_label)
         ax.set_xlabel("r (m)" if X.max() > 10 else "φ (°)")
@@ -208,13 +211,26 @@ class PlotDialog(QtWidgets.QDialog):
 class FigureViewer(QtWidgets.QDialog):
     """独立大窗口，标签页显示生成的图。"""
 
-    def __init__(self, figures, parent=None):
+    def __init__(self, figures, parent=None, field_data=None):
         super().__init__(parent)
         self.setWindowTitle("绘图结果")
         self.resize(1000, 700)
         self._figures = figures
 
         layout = QtWidgets.QVBoxLayout(self)
+
+        # 范围说明
+        if field_data:
+            d = field_data
+            r0, r1 = d["r_vals"][0], d["r_vals"][-1]
+            info = QtWidgets.QLabel(
+                f"绘制范围：径向 r ∈ [{r0:.1f}, {r1:.1f}] m  |  "
+                f"高度 z ∈ [0, {d['z_vals'][-1]:.1f}] m  |  "
+                f"频率 {d['config'].frequency/1e9:.1f} GHz\n"
+                f"注：最远测量点决定径向范围；地面以下及天顶吸收层无有效数据"
+            )
+            info.setStyleSheet("color: #666; padding: 2px 6px; font-size: 11px;")
+            layout.addWidget(info)
         tabs = QtWidgets.QTabWidget()
         for title, fig in figures:
             w = QtWidgets.QWidget()
