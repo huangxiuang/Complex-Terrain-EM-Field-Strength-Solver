@@ -152,6 +152,9 @@ class PlotDialog(QtWidgets.QDialog):
                 phi_deg = np.where(phi_deg > 180, phi_deg - 360, phi_deg)
                 mask = (phi_deg >= -90) & (phi_deg <= 90)
                 phi_deg = phi_deg[mask]; TL = TL[mask, :]
+                # 重排序：phi必须单调递增，pcolormesh才能正确渲染
+                sort_idx = np.argsort(phi_deg)
+                phi_deg = phi_deg[sort_idx]; TL = TL[sort_idx, :]
                 P, Zp = np.meshgrid(phi_deg, z, indexing="ij")
                 figs.append((f"φ-z TL分布 r={r[ri]:.1f}m", self._contour(P,Zp,TL,"TL (dB)",f"φ-z TL分布 r={r[ri]:.1f}m","jet",cfg)))
 
