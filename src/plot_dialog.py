@@ -40,7 +40,6 @@ class PlotDialog(QtWidgets.QDialog):
         self.setWindowTitle("画图")
         self.setMinimumSize(700, 500)
         self._data = field_data
-        self._figures = []
         self._param_widgets = {}
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -90,12 +89,6 @@ class PlotDialog(QtWidgets.QDialog):
         self._btn_gen.clicked.connect(self._generate)
         self._btn_gen.setStyleSheet("QPushButton { font-weight: bold; background: #2196F3; color: white; padding: 6px 20px; }")
         btn.addWidget(self._btn_gen)
-        btn_export = QtWidgets.QPushButton("导出当前图…")
-        btn_export.clicked.connect(self._export_current)
-        btn.addWidget(btn_export)
-        btn_export_all = QtWidgets.QPushButton("导出全部…")
-        btn_export_all.clicked.connect(self._export_all)
-        btn.addWidget(btn_export_all)
         btn.addStretch()
         btn_close = QtWidgets.QPushButton("关闭")
         btn_close.clicked.connect(self.accept)
