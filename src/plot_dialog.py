@@ -197,15 +197,17 @@ class PlotDialog(QtWidgets.QDialog):
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(8, 5))
-        # 去除 NaN/Inf
         data = np.nan_to_num(data, nan=0.0, posinf=200, neginf=0)
-        # 裁剪合理范围
         finite = data[np.isfinite(data)]
-        vmin = max(float(finite.min()) if len(finite) > 0 else 0, 0) if "TL" in cbar_label else float(finite.min()) if len(finite) > 0 else -100
-        vmax = float(finite.max()) if len(finite) > 0 else 80
-        if vmax - vmin < 1:
-            vmax = vmin + 10
-        vmax = min(vmax, vmin + 80)
+        if len(finite) == 0:
+            fig.tight_layout(); return fig
+        # 用百分位避免零场区极端值污染色阶
+        p5 = np.percentile(finite, 5)
+        p95 = np.percentile(finite, 95)
+        span = p95 - p5
+        if span < 1: span = 10
+        vmin = p5
+        vmax = min(p95, vmin + max(span, 40))
         lev = np.linspace(vmin, vmax, 30)
         cf = ax.contourf(X, Y, data, levels=lev, cmap=cmap, extend="both")
         fig.colorbar(cf, ax=ax, label=cbar_label)
