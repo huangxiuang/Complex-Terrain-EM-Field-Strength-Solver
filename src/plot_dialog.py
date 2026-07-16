@@ -127,9 +127,11 @@ class PlotDialog(QtWidgets.QDialog):
                     u_ref = u_slice[0,:].max() or 1e-30
                     TL = -20*np.log10(np.maximum(u_slice/u_ref, 1e-15))
                     for ri in range(len(r)): TL[ri,:] += 10*np.log10(max(r[ri]/r0,1.0))
+                    TL = np.nan_to_num(TL, nan=200, posinf=200, neginf=0)
                     figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,TL,"TL (dB)",f"r-z TL分布 φ={phi_deg.value():.0f}°","jet",cfg)))
                 else:
                     E_db = 20*np.log10(np.maximum(u_slice,1e-15))
+                    E_db = np.nan_to_num(E_db, nan=-200, neginf=-200)
                     figs.append((f"r-z 电场分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,E_db,"|E| (dB)",f"r-z 电场分布 φ={phi_deg.value():.0f}°","hot",cfg)))
 
             elif key == "phiz_tl":
@@ -138,6 +140,7 @@ class PlotDialog(QtWidgets.QDialog):
                 ri = np.argmin(np.abs(r - r_fix.value()))
                 u_slice = np.abs(u[ri,:,:]); u_ref = u_slice.max() or 1e-30
                 TL = -20*np.log10(np.maximum(u_slice/u_ref,1e-15)) + 10*np.log10(max(r[ri]/r0,1.0))
+                TL = np.nan_to_num(TL, nan=200, posinf=200, neginf=0)
                 # phi: 0-360 → -90..90 convention (0°=+x, +90°=+y, -90°=-y)
                 phi_deg = np.degrees(phi)
                 phi_deg = np.where(phi_deg > 180, phi_deg - 360, phi_deg)
@@ -164,6 +167,7 @@ class PlotDialog(QtWidgets.QDialog):
                 if r_fix is None: continue
                 ri = np.argmin(np.abs(r - r_fix.value()))
                 E_db = 20*np.log10(np.maximum(np.abs(u[ri,0,:]),1e-15))
+                E_db = np.nan_to_num(E_db, nan=-200, neginf=-200)
                 title = f"场强 vs 高度 r={r[ri]:.1f}m"
                 fig, ax = plt.subplots(figsize=(6,6))
                 ax.plot(E_db, z, "r-", linewidth=1.5); ax.set_xlabel("|E| (dB)"); ax.set_ylabel("高度 z (m)")
@@ -193,9 +197,15 @@ class PlotDialog(QtWidgets.QDialog):
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(8, 5))
-        # 裁剪合理范围，去除地下/天顶的极端值
-        vmin = max(data[data < 200].min() if (data < 200).any() else 0, 0)
-        vmax = min(data.max(), vmin + 80)
+        # 去除 NaN/Inf
+        data = np.nan_to_num(data, nan=0.0, posinf=200, neginf=0)
+        # 裁剪合理范围
+        finite = data[np.isfinite(data)]
+        vmin = max(float(finite.min()) if len(finite) > 0 else 0, 0) if "TL" in cbar_label else float(finite.min()) if len(finite) > 0 else -100
+        vmax = float(finite.max()) if len(finite) > 0 else 80
+        if vmax - vmin < 1:
+            vmax = vmin + 10
+        vmax = min(vmax, vmin + 80)
         lev = np.linspace(vmin, vmax, 30)
         cf = ax.contourf(X, Y, data, levels=lev, cmap=cmap, extend="both")
         fig.colorbar(cf, ax=ax, label=cbar_label)
