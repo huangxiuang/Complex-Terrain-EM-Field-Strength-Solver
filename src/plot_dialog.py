@@ -215,10 +215,12 @@ class PlotDialog(QtWidgets.QDialog):
         cf = ax.pcolormesh(X, Y, data, shading="gouraud", cmap=_cmap,
                            vmin=vmin, vmax=vmax)
         cbar = fig.colorbar(cf, ax=ax, label=cbar_label, extend="both")
-        ax.set_xlabel("r (m)" if X.max() > 10 else "φ (°)")
+        # 判断轴类型：有负值→φ轴，全是正→r轴
+        is_phi = (X.min() < 0)
+        ax.set_xlabel("φ (°)" if is_phi else "r (m)")
         ax.set_ylabel("z (m)")
         ax.set_title(title)
-        if 0 <= cfg.antenna_pos[2] <= Y.max():
+        if cfg.antenna_pos[2] <= Y.max():
             ax.plot(0, cfg.antenna_pos[2], "w*", markersize=10, markeredgecolor="k", markeredgewidth=0.5)
         fig.tight_layout()
         return fig
