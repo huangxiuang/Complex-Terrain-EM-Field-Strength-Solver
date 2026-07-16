@@ -23,6 +23,7 @@ from src.antenna_dialog import AntennaDialog
 from src.sweep_dialog import SweepDialog
 from src.scene.scenes import SCENE_REGISTRY, build_metal_barrier
 from src.scene.scene_dialog import SceneSelectDialog, ScenePropsDialog
+from src.plot_dialog import PlotDialog
 
 import matplotlib.path as mpath
 
@@ -38,6 +39,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plotter_actors = {}
         self._pending_rx_points = []
         self._current_scene_key = "metal_barrier"
+        self._last_field_data = None   # 最近一次求解的完整场数据
 
         # ── Central 3D viewport ──
         self.plotter = pvqt.QtInteractor(self)
@@ -149,6 +151,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self._btn_solve.setEnabled(False)
         self._btn_solve.setToolTip("对已添加的测量点进行 CPE 计算")
         tb.addWidget(self._btn_solve)
+
+        self._btn_plot = QtWidgets.QPushButton("📊 画图")
+        self._btn_plot.setStyleSheet(
+            "QPushButton { font-weight: bold; font-size: 14px; "
+            "background: #00796B; color: white; padding: 6px 20px; "
+            "border-radius: 4px; } "
+            "QPushButton:disabled { background: #ccc; }"
+        )
+        self._btn_plot.clicked.connect(self._on_plot)
+        self._btn_plot.setEnabled(False)
+        self._btn_plot.setToolTip("绘制传输损耗分布图")
+        tb.addWidget(self._btn_plot)
         # Pending rx point count label
         self._rx_count_label = QtWidgets.QLabel("未添加测量点")
         self._rx_count_label.setStyleSheet("padding: 4px 8px; color: #888;")
@@ -280,6 +294,13 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg = SweepDialog(self, self.scene_objects, tx, self._pending_rx_points)
         dlg.exec_()
 
+    def _on_plot(self):
+        if self._last_field_data is None:
+            QtWidgets.QMessageBox.warning(self, "提示", "请先完成求解")
+            return
+        dlg = PlotDialog(self, self._last_field_data)
+        dlg.exec_()
+
     def _on_solve(self):
         if not self._pending_rx_points:
             QtWidgets.QMessageBox.warning(self, "提示", "请先添加测量点")
@@ -305,8 +326,23 @@ class MainWindow(QtWidgets.QMainWindow):
             frequency=freq,
             antenna_pos=tx,
         )
-        sched = Scheduler()
-        results_raw = sched.run(config=config, rx_points=rx_points, scene=self.scene_objects)
+        from src.core.context import Context
+        from src.engine import prep, solver as pe_solver, post
+        ctx = Context(config=config, rx_points=rx_points, scene=self.scene_objects)
+        ctx = prep.run(ctx)
+        ctx = pe_solver.run(ctx)
+        # 保存完整场数据供绘图
+        self._last_field_data = {
+            "u_total": ctx.u_total,
+            "r_vals": ctx.r_vals,
+            "z_vals": ctx.z_vals,
+            "phi_vals": ctx.phi_vals,
+            "config": config,
+            "scene": self.scene_objects,
+        }
+        self._btn_plot.setEnabled(True)
+        ctx = post.run(ctx)
+        results_raw = ctx.results
         results = []
         for i, res in enumerate(results_raw):
             rx = res["rx"]
