@@ -274,14 +274,16 @@ def build_wilderness():
         15*np.exp(-((X+100)**2+(Y-150)**2)/8000) + 12*np.exp(-((X-50)**2+(Y+50)**2)/10000) +
         10*np.exp(-((X+250)**2+(Y-100)**2)/12000) + 8*np.exp(-((X-200)**2+(Y-50)**2)/9000) +
         # 地表纹理
-        4*np.sin(X*0.012)*np.cos(Y*0.015) + 3*np.cos(X*0.025)*np.sin(Y*0.02) +
-        2*np.sin(X*0.04-Y*0.035) + 1.5*np.cos(X*0.06+Y*0.05) + 6.0
+        6*np.sin(X*0.008)*np.cos(Y*0.01) + 5*np.cos(X*0.015)*np.sin(Y*0.018) +
+        4*np.sin(X*0.025-Y*0.02) + 3*np.cos(X*0.04+Y*0.035) +
+        2.5*np.sin(X*0.06)*np.sin(Y*0.05) + 2*np.cos(X*0.08-Y*0.07) +
+        1.5*np.sin(X*0.1+Y*0.09) + 6.0
     )
     # 挖河道
     for i in range(res):
         for j in range(res):
             d = abs(X[i,j] - 3.0*np.sin(Y[i,j]*0.3))
-            if d < 2.0: t = d/2.0; Z[i,j] = Z[i,j]*(0.03+0.15*t) - 2.5*(1-t)
+            if d < 4.0: t = d/4.0; Z[i,j] = Z[i,j]*(0.03+0.15*t) - 3.0*(1-t)
     Z = np.maximum(Z, 0.0)
 
     grid = pv.StructuredGrid(X, Y, Z)
@@ -324,8 +326,8 @@ def build_wilderness():
     #  3. 水域: 河 + 湖 + 沼泽
     # ═══════════════════════════════════════════════════════════
     # 河: 水面贴合河道底部地形
-    ny, nw = 150, 15
-    ry = np.linspace(-500, 500, ny); rw = np.linspace(-1.2, 1.2, nw)
+    ny, nw = 150, 25
+    ry = np.linspace(-500, 500, ny); rw = np.linspace(-2.5, 2.5, nw)
     Ry, Rw = np.meshgrid(ry, rw)
     Rx = 3.0*np.sin(Ry*0.3) + Rw
     # 采样河道中心线地形
