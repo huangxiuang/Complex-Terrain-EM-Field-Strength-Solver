@@ -323,13 +323,16 @@ def build_wilderness():
     # ═══════════════════════════════════════════════════════════
     #  3. 水域: 河 + 湖 + 沼泽
     # ═══════════════════════════════════════════════════════════
-    # 河
+    # 河: 水面贴合河道底部地形
     ny, nw = 150, 15
     ry = np.linspace(-500, 500, ny); rw = np.linspace(-1.2, 1.2, nw)
     Ry, Rw = np.meshgrid(ry, rw)
     Rx = 3.0*np.sin(Ry*0.3) + Rw
+    # 采样河道中心线地形
+    river_center_z = np.array([Z[np.argmin(np.abs(ys-yy)), np.argmin(np.abs(xs-3.0*np.sin(yy*0.3)))] for yy in ry])
+    river_z_surface = np.tile(river_center_z[:, np.newaxis], (1, nw)) + 0.2
     actors["river"] = {
-        "mesh": pv.StructuredGrid(Rx, Ry, np.full_like(Rx, -2.3)),
+        "mesh": pv.StructuredGrid(Rx, Ry, river_z_surface),
         "type": "mesh", "visible": True,
         "params": {"color": "#0d4f4f", "opacity": 0.75, "smooth_shading": True,
                    "specular": 0.6, "specular_power": 50, "ambient": 0.2},
@@ -378,33 +381,24 @@ def build_wilderness():
                       "is_material_layer": True},
             "name": "grassland",
         }
-    # 稀疏林 (南部, Z<40)
-    st=[]; 
-    for _ in range(120):
-        tx=np.random.uniform(50,300); ty=np.random.uniform(-200,-50)
+    # 稀疏林 + 密林（均在草地 X:-380~-20, Y:-280~280, Z:20~60）
+    st=[]; dt=[]
+    for _ in range(280):
+        tx=np.random.uniform(-380, -20); ty=np.random.uniform(-280, 280)
         tix=np.argmin(np.abs(xs-tx)); tiy=np.argmin(np.abs(ys-ty))
-        if Z[tiy,tix]<40:
-            h=np.random.uniform(3,6)
-            tr=pv.Cylinder(center=(tx,ty,Z[tiy,tix]+h*0.25),direction=(0,0,1),radius=0.12,height=h*0.5,resolution=6)
-            cn=pv.Cone(center=(tx,ty,Z[tiy,tix]+h*0.6),direction=(0,0,1),radius=h*0.2,height=h*0.6,resolution=8)
-            st.append(tr.merge(cn))
+        tz=Z[tiy,tix]
+        if 20<tz<60:
+            h=np.random.uniform(3,6) if tx<-200 else np.random.uniform(5,12)
+            tr=pv.Cylinder(center=(tx,ty,tz+h*0.25),direction=(0,0,1),radius=0.12,height=h*0.5,resolution=6)
+            cn=pv.Cone(center=(tx,ty,tz+h*0.6),direction=(0,0,1),radius=h*0.2,height=h*0.6,resolution=8)
+            (st if tx<-200 else dt).append(tr.merge(cn))
     if st:
-        sm=st[0]; 
+        sm=st[0]
         for t in st[1:]: sm=sm.merge(t)
         actors["sparse_forest"] = {"mesh":sm,"type":"mesh","visible":True,
             "params":{"color":"#3a7d3a","smooth_shading":False,"opacity":0.85},"extra":None,"name":"sparse_forest"}
-    # 密林 (东南, Z<30)
-    dt=[];
-    for _ in range(200):
-        tx=np.random.uniform(250,450); ty=np.random.uniform(-250,-80)
-        tix=np.argmin(np.abs(xs-tx)); tiy=np.argmin(np.abs(ys-ty))
-        if Z[tiy,tix]<30:
-            h=np.random.uniform(4,10)
-            tr=pv.Cylinder(center=(tx,ty,Z[tiy,tix]+h*0.25),direction=(0,0,1),radius=0.18,height=h*0.5,resolution=5)
-            cn=pv.Cone(center=(tx,ty,Z[tiy,tix]+h*0.6),direction=(0,0,1),radius=h*0.3,height=h*0.6,resolution=7)
-            dt.append(tr.merge(cn))
     if dt:
-        dm=dt[0]; 
+        dm=dt[0]
         for t in dt[1:]: dm=dm.merge(t)
         actors["dense_forest"] = {"mesh":dm,"type":"mesh","visible":True,
             "params":{"color":"#1e5a1e","smooth_shading":False,"opacity":0.9},"extra":None,"name":"dense_forest"}
@@ -457,6 +451,7 @@ def build_wilderness():
     try:
         sn = grid.extract_surface().threshold([100,200], scalars="elevation", preference="point")
         if sn.n_points > 5:
+            sn.points[:, 2] += 0.8  # 防 z-fighting
             actors["snow_cap"] = {"mesh":sn,"type":"mesh","visible":True,
                 "params":{"color":"#f0f0f0","smooth_shading":True,"opacity":0.7,
                           "ambient":0.3,"diffuse":0.9,"specular":0.3,"specular_power":30},
