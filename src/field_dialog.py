@@ -521,7 +521,7 @@ class PreciseRxDialog(QtWidgets.QDialog):
         self._selected_idx=idx
         # Set Z from click Y position
         if event.ydata is not None:
-            z_val = max(-10, min(50, event.ydata))
+            z_val = max(-10, min(200, event.ydata))
             self._z_values[idx] = z_val
             self._z_spin.blockSignals(True)
             self._z_spin.setValue(z_val)

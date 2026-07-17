@@ -613,7 +613,8 @@ def build_wilderness():
         "extra": {"position": ANT, "is_source": True,
                   "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0,
                                          fast_nz=512, fast_nphi=64,
-                                         sigma_z=80.0, type="gaussian")},
+                                         sigma_z=40.0, type="gaussian",
+                                         tilt_angle=15.0)},
         "name": "antenna",
     }
     return actors

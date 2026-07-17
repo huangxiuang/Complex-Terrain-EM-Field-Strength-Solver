@@ -451,7 +451,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if obj.get("visible", True):
                 self._add_actor(name, obj)
 
-        self.plotter.camera_position = [(20, -14, 10), (0, 0, 3), (0, 0, 1)]
+        if self._current_scene_key == "wilderness":
+            self.plotter.camera_position = [(0, -800, 400), (0, 0, 100), (0, 0, 1)]
+        else:
+            self.plotter.camera_position = [(20, -14, 10), (0, 0, 3), (0, 0, 1)]
         self.plotter.render()
         self.statusBar().showMessage(f"已加载场景：{info['name']}")
 
@@ -499,9 +502,17 @@ class MainWindow(QtWidgets.QMainWindow):
         dr = ant_cfg.get("dr_factor", 1.0)
         nz = ant_cfg.get("fast_nz", 2048)
         nphi = ant_cfg.get("fast_nphi", 128)
+        atype = ant_cfg.get("type", "gaussian")
+        asigma = ant_cfg.get("sigma_z", 4.0)
+        atilt = ant_cfg.get("tilt_angle", 0.0)
+        apatch = ant_cfg.get("patch_hpbw", 70.0)
+        ahorn = ant_cfg.get("horn_hpbw", 30.0)
         config = EMConfig(
             frequency=freq, antenna_pos=tx,
             dr_factor=dr, n_z=nz, n_phi=nphi,
+            antenna_type=atype, antenna_sigma_z=asigma,
+            antenna_tilt=atilt, antenna_patch_hpbw=apatch,
+            antenna_horn_hpbw=ahorn,
         )
         from src.core.context import Context
         from src.engine import prep, solver as pe_solver, post
