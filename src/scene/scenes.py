@@ -594,7 +594,7 @@ def build_wilderness():
     # ═══════════════════════════════════════════════════════════
     #  11. 天线
     # ═══════════════════════════════════════════════════════════
-    ANT = (-400.0, 0.0, 55.0)
+    ANT = (-400.0, 0.0, 85.0)
     ant_ix = np.argmin(np.abs(xs-ANT[0])); ant_iy = np.argmin(np.abs(ys-ANT[1]))
     ant_tz = float(Z[ant_iy, ant_ix])
     sphere = pv.Sphere(radius=1.5, center=ANT)
@@ -606,7 +606,9 @@ def build_wilderness():
         "params": {"color": "#e63946", "smooth_shading": True, "opacity": 1.0,
                    "ambient": 0.5, "diffuse": 0.9, "specular": 0.5, "specular_power": 50},
         "extra": {"position": ANT, "is_source": True,
-                  "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0, fast_nz=768, fast_nphi=48)},
+                  "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0,
+                                         fast_nz=768, fast_nphi=48,
+                                         sigma_z=3.0, type="gaussian")},
         "name": "antenna",
     }
     return actors
