@@ -208,18 +208,25 @@ class PlotDialog(QtWidgets.QDialog):
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(10, 6))
-        data = np.nan_to_num(data, nan=0.0, posinf=200, neginf=0)
+        data = np.nan_to_num(data, nan=0.0, posinf=300, neginf=0)
 
-        # 色阶范围：p2-p98 百分位避免极端值过饱和
-        finite = data[np.isfinite(data)]
+        # 固定色阶范围，不用百分位（百分位会被地下零场区域扭曲）
+        finite = data[np.isfinite(data) & (data < 300)]
         if len(finite) < 10:
             fig.tight_layout(); return fig
-        vmin = float(np.percentile(finite, 2))
-        vmax = float(np.percentile(finite, 98))
+
         if "TL" in cbar_label or "损耗" in title:
-            vmax = max(vmax, 180)  # TL图红区覆盖180+ dB
-        span = vmax - vmin
-        if span < 1: vmax = vmin + 10
+            # TL: 0~200 dB, 0=自由空间, 200=深度阴影
+            vmin = max(float(finite.min()), -10)
+            vmax = min(float(finite.max()), 220)
+            if vmax - vmin < 10:
+                vmax = vmin + 40
+        else:
+            # 电场: 以最大值为参考，向下60dB
+            vmax = float(finite.max())
+            vmin = max(vmax - 80, -150)
+            if vmax - vmin < 10:
+                vmin = vmax - 40
 
         # colormap: TL蓝→红(200dB深红), 电场inferno
         if "TL" in cbar_label or "损耗" in title:
