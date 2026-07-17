@@ -500,7 +500,7 @@ def build_wilderness():
                    "ambient": 0.5, "diffuse": 0.9, "specular": 0.5, "specular_power": 50},
         "extra": {"position": ANT, "is_source": True,
                   "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0,
-                                         fast_nz=512, fast_nphi=64,
+                                         fast_nz=512, fast_nphi=64, z_pad=200.0,
                                          sigma_z=60.0, type="gaussian", tilt_angle=-10.0)},
         "name": "antenna",
     }

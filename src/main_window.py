@@ -507,12 +507,13 @@ class MainWindow(QtWidgets.QMainWindow):
         atilt = ant_cfg.get("tilt_angle", 0.0)
         apatch = ant_cfg.get("patch_hpbw", 70.0)
         ahorn = ant_cfg.get("horn_hpbw", 30.0)
+        zpad = ant_cfg.get("z_pad", 20.0)
         config = EMConfig(
             frequency=freq, antenna_pos=tx,
             dr_factor=dr, n_z=nz, n_phi=nphi,
             antenna_type=atype, antenna_sigma_z=asigma,
             antenna_tilt=atilt, antenna_patch_hpbw=apatch,
-            antenna_horn_hpbw=ahorn,
+            antenna_horn_hpbw=ahorn, z_pad_above=zpad,
         )
         from src.core.context import Context
         from src.engine import prep, solver as pe_solver, post
@@ -718,7 +719,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if "extra" not in ant:
                 ant["extra"] = {}
             # 保留场景特定的性能参数
-            for k in ("dr_factor", "fast_nz", "fast_nphi"):
+            for k in ("dr_factor", "fast_nz", "fast_nphi", "z_pad"):
                 old_val = (ant.get("extra") or {}).get("antenna_config", {}).get(k)
                 if old_val is not None:
                     new_config[k] = old_val
