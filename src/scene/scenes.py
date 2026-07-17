@@ -333,7 +333,9 @@ def build_wilderness():
     grid["elevation"] = Z.flatten(order="F")
     actors["terrain"] = {
         "mesh": grid, "type": "mesh", "visible": True,
-        "params": {"color": "#b8956a", "smooth_shading": True, "opacity": 1.0},
+        "params": {"scalars": "elevation", "cmap": "terrain",
+                   "show_scalar_bar": False, "smooth_shading": True, "opacity": 1.0,
+                   "ambient": 0.1, "diffuse": 0.9, "specular": 0.15, "specular_power": 20},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
                   "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
         "name": "terrain",
@@ -516,33 +518,38 @@ def build_wilderness():
         }
 
     # ═══════════════════════════════════════════════════════════
-    #  8. 水体 — 主湖 + 小水塘
+    #  8. 水体 — 主湖 + 小水塘（采样地形 Z）
     # ═══════════════════════════════════════════════════════════
-    # 主湖
-    lake_cx, lake_cy, lake_r = -180.0, -140.0, 55.0
+    def _terrain_z_at(x, y):
+        ix = np.argmin(np.abs(xs - x)); iy = np.argmin(np.abs(ys - y))
+        return float(Z[iy, ix])
+
+    lake_cx, lake_cy, lake_r = -300.0, -350.0, 70.0
     ntl, nrl = 50, 20
     tl = np.linspace(0, 2*np.pi, ntl)
     rl = np.linspace(0, lake_r, nrl)
     Tl, Rl = np.meshgrid(tl, rl)
     lx = lake_cx + Rl*np.cos(Tl)
     ly = lake_cy + Rl*np.sin(Tl)
-    lz = np.full_like(lx, 2.2)
+    lz = np.maximum(np.full_like(lx, _terrain_z_at(lake_cx, lake_cy) + 0.3), 0.5)
     actors["lake"] = {
-        "mesh": pv.StructuredGrid(lx, ly, lz), "type": "mesh", "visible": True,
-        "params": {"color": "#1a5276", "opacity": 0.6, "smooth_shading": True},
+        "mesh": pv.StructuredGrid(lx, ly, np.full_like(lx, lz[0,0])), "type": "mesh", "visible": True,
+        "params": {"color": "#1a5276", "opacity": 0.55, "smooth_shading": True,
+                   "specular": 0.8, "specular_power": 80, "ambient": 0.2},
         "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 250}},
         "name": "lake",
     }
-    # 小水塘
-    for px, py, pr in [(-300, 50, 20), (100, -250, 15), (350, -100, 12)]:
+    for px, py, pr in [(-200, -400, 25), (0, -300, 18), (300, -200, 15)]:
         ntp, nrp = 25, 8
         tp = np.linspace(0, 2*np.pi, ntp)
         rp = np.linspace(0, pr, nrp)
         Tp, Rp = np.meshgrid(tp, rp)
-        pond = pv.StructuredGrid(px+Rp*np.cos(Tp), py+Rp*np.sin(Tp), np.full_like(Rp, 1.5))
+        pz = max(_terrain_z_at(px, py) + 0.2, 0.3)
+        pond = pv.StructuredGrid(px+Rp*np.cos(Tp), py+Rp*np.sin(Tp), np.full_like(Rp, pz))
         actors[f"pond_{px:.0f}"] = {
             "mesh": pond, "type": "mesh", "visible": True,
-            "params": {"color": "#2471a3", "opacity": 0.55, "smooth_shading": True},
+            "params": {"color": "#2471a3", "opacity": 0.5, "smooth_shading": True,
+                       "specular": 0.7, "specular_power": 60, "ambient": 0.2},
             "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 100}},
             "name": f"pond_{px:.0f}",
         }
@@ -600,7 +607,7 @@ def build_wilderness():
         "params": {"color": "#e63946", "smooth_shading": True, "opacity": 1.0,
                    "ambient": 0.5, "diffuse": 0.9, "specular": 0.5, "specular_power": 50},
         "extra": {"position": ANT, "is_source": True,
-                  "antenna_config": dict(DEFAULT_ANTENNA_CONFIG)},
+                  "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=2.0)},
         "name": "antenna",
     }
     return actors
