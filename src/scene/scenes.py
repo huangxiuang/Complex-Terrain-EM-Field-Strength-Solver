@@ -254,170 +254,347 @@ def build_city_block():
 # ═══════════════════════════════════════════════════════════════
 
 @register("wilderness", "荒原", "1000×1000m 真实地形 — 山脊/平原/谷地 + 沙地/草地/森林/湖泊, ITU-R P.833")
+
+# ═══════════════════════════════════════════════════════════════
+#  场景 4：荒原 — 精细雕刻
+# ═══════════════════════════════════════════════════════════════
+
+@register("wilderness", "荒原", "1000×1000m 精细地形: 山脊·断崖·高原·沟壑 + 森林·岩体·湖泊·沙地, ITU-R P.833/P.527")
 def build_wilderness():
-    span = 500.0           # 半边长
-    res = 140              # 分辨率，7.2m 间距
+    span = 500.0
+    res = 250           # 4m 间距，高精度
     xs = np.linspace(-span, span, res)
     ys = np.linspace(-span, span, res)
     X, Y = np.meshgrid(xs, ys)
-
-    # ── 多尺度地形生成 ──
-    # 大尺度：山脉 + 平原
-    Z_large = (
-        80.0 * np.exp(-((X - 200) ** 2 + (Y - 150) ** 2) / 80000) +   # 东北山脊
-        50.0 * np.exp(-((X - 300) ** 2 + (Y - 300) ** 2) / 60000) +   # 远东山头
-        35.0 * np.exp(-((X + 100) ** 2 + (Y - 250) ** 2) / 50000) +   # 北山
-        60.0 * np.exp(-((X - 350) ** 2 + Y ** 2) / 70000)             # 东山
-    )
-    # 中尺度：丘陵
-    Z_mid = (
-        20.0 * np.exp(-((X + 50) ** 2 + (Y + 50) ** 2) / 15000) +
-        25.0 * np.exp(-((X - 100) ** 2 + (Y + 150) ** 2) / 20000) +
-        15.0 * np.exp(-((X - 50) ** 2 + (Y - 100) ** 2) / 18000) +
-        18.0 * np.exp(-((X + 200) ** 2 + (Y - 50) ** 2) / 25000)
-    )
-    # 小尺度：地表纹理（多频正弦叠加模拟侵蚀）
-    Z_fine = (
-        3.0 * np.sin(X * 0.02) * np.cos(Y * 0.03) +
-        2.0 * np.cos(X * 0.05 + 1.5) * np.sin(Y * 0.04) +
-        1.5 * np.sin(X * 0.08 - Y * 0.06) +
-        1.0 * np.cos(X * 0.12) * np.cos(Y * 0.10)
-    )
-    # 谷地：沿 X 方向的侵蚀沟
-    Z_valley = -12.0 * np.exp(-((Y + 50) ** 2) / 3000) * np.abs(np.sin(X * 0.008 + 1.0))
-    # 盆地
-    Z_basin = -15.0 * np.exp(-((X - 250) ** 2 + (Y + 200) ** 2) / 25000)
-
-    Z = Z_large + Z_mid + Z_fine + Z_valley + Z_basin + 5.0
-    Z = np.maximum(Z, 0.0)  # 不低于 0
-
     actors = {}
+    np.random.seed(137)
 
-    # ── 地形 ──
+    # ═══════════════════════════════════════════════════════════
+    #  1. 地形 — 8 层叠加
+    # ═══════════════════════════════════════════════════════════
+
+    # 大尺度山脉骨架
+    Z1 = (
+        90.0 * np.exp(-((X-180)**2+(Y-120)**2)/90000) +   # 东北主山脊
+        75.0 * np.exp(-((X-320)**2+(Y-280)**2)/75000) +   # 远东山头
+        55.0 * np.exp(-((X+120)**2+(Y-280)**2)/60000) +   # 北山
+        65.0 * np.exp(-((X-380)**2+(Y+20)**2)/65000) +    # 东南山
+        40.0 * np.exp(-((X+300)**2+(Y-100)**2)/55000)     # 西山
+    )
+
+    # 中尺度丘陵过渡
+    Z2 = (
+        28.0 * np.exp(-((X+40)**2+(Y+60)**2)/18000) +
+        22.0 * np.exp(-((X-120)**2+(Y+180)**2)/22000) +
+        18.0 * np.exp(-((X-60)**2+(Y-120)**2)/20000) +
+        25.0 * np.exp(-((X+220)**2+(Y-40)**2)/24000) +
+        20.0 * np.exp(-((X+180)**2+(Y+200)**2)/21000)
+    )
+
+    # 高原台地（西北方向）
+    plateau_mask = (X < -150) & (Y > 100) & (X > -400) & (Y < 350)
+    Z_plateau = np.zeros_like(X)
+    Z_plateau[plateau_mask] = 35.0
+    edge_dist = np.minimum(
+        np.abs(X + 150), np.abs(X + 400),
+    )
+    edge_fade = np.clip((edge_dist - 20) / 40, 0, 1)
+    Z_plateau[plateau_mask] *= np.where(edge_fade[plateau_mask] < 0.3, edge_fade[plateau_mask] / 0.3, 1.0)
+
+    # 断崖（Y=200 附近的陡坡）
+    cliff = 25.0 / (1.0 + np.exp(-(Y - 200) / 10)) * np.exp(-((X + 250)**2) / 15000)
+
+    # 侵蚀沟壑网络
+    gully1 = -8.0 * np.exp(-((Y + 80)**2) / 2500) * np.abs(np.sin(X * 0.01 + 0.8))
+    gully2 = -6.0 * np.exp(-((Y - 300)**2) / 2000) * np.abs(np.cos(X * 0.012 - 1.2))
+    gully3 = -5.0 * np.exp(-((Y - 50)**2) / 3500) * np.abs(np.sin((X + 200) * 0.009))
+
+    # 多频地表纹理（6 个频率分量）
+    Z_texture = (
+        2.5 * np.sin(X*0.015) * np.cos(Y*0.018) +
+        1.8 * np.cos(X*0.035+1.2) * np.sin(Y*0.028) +
+        1.2 * np.sin(X*0.06-Y*0.05) * np.cos(Y*0.04) +
+        0.8 * np.cos(X*0.09) * np.cos(Y*0.11+0.7) +
+        0.5 * np.sin(X*0.13+Y*0.12) +
+        0.3 * np.cos(X*0.18-Y*0.15)
+    )
+
+    # 随机起伏（模拟风化碎石地）
+    Z_random = 1.5 * np.random.randn(*X.shape)
+    Z_random = np.clip(Z_random, -3, 3)
+
+    Z = Z1 + Z2 + Z_plateau + cliff + gully1 + gully2 + gully3 + Z_texture + Z_random + 3.0
+    Z = np.maximum(Z, 0.0)
+
+    # ═══════════════════════════════════════════════════════════
+    #  2. 地形 Mesh
+    # ═══════════════════════════════════════════════════════════
     grid = pv.StructuredGrid(X, Y, Z)
     grid["elevation"] = Z.flatten(order="F")
     actors["terrain"] = {
         "mesh": grid, "type": "mesh", "visible": True,
-        "params": {"color": "#c8b88a", "smooth_shading": True, "opacity": 1.0},
+        "params": {"color": "#b8956a", "smooth_shading": True, "opacity": 1.0},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
                   "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
         "name": "terrain",
     }
 
-    surface = grid.extract_surface()
-
-    # ── 沙地区域（西南平坦区，Z<10m 的低处）──
-    # ITU-R P.527: dry sand ε_r≈2.5-3.0, σ≈0.0001-0.001
-    sand_mask = (X < 50) & (Y < 50) & (Z < 10)
+    # ═══════════════════════════════════════════════════════════
+    #  3. 沙地区域（西南低处）— ITU-R P.527 dry sand
+    # ═══════════════════════════════════════════════════════════
+    sand_poly = np.array([[-350,-300],[-50,-350],[100,-150],[50,50],[-200,0],[-350,-100]])
+    sand_mask = np.zeros(X.shape, dtype=bool)
+    for i in range(res):
+        for j in range(res):
+            if _point_in_poly_py(X[j,i], Y[j,i], sand_poly) and Z[j,i] < 12:
+                sand_mask[j,i] = True
     if sand_mask.any():
-        sand_pts = np.column_stack((X[sand_mask], Y[sand_mask], Z[sand_mask] + 0.1))
-        sand_poly = pv.PolyData(sand_pts)
+        s_pts = np.column_stack((X[sand_mask], Y[sand_mask], Z[sand_mask]+0.2))
+        sp = pv.PolyData(s_pts)
         try:
-            sand_surf = sand_poly.delaunay_2d()
+            ss = sp.delaunay_2d()
             actors["sand_zone"] = {
-                "mesh": sand_surf, "type": "mesh", "visible": True,
-                "params": {"color": "#e8c76a", "opacity": 0.7, "smooth_shading": True},
-                "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 30.0}},
+                "mesh": ss, "type": "mesh", "visible": True,
+                "params": {"color": "#e8c76a", "opacity": 0.75, "smooth_shading": True},
+                "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 30}},
                 "name": "sand_zone",
             }
-        except Exception:
-            pass
+        except Exception: pass
 
-    # ── 草原区域（中部丘陵，Z=10~40m）──
-    # ITU-R P.527: medium dry ground ε_r≈15, σ≈0.01
-    grass_poly_xy = np.array([
-        [-300, -200], [-100, 150], [200, 300], [350, 100], [250, -250], [-50, -350], [-300, -200]
-    ])
+    # ═══════════════════════════════════════════════════════════
+    #  4. 草原 — ITU-R P.527 medium dry ground
+    # ═══════════════════════════════════════════════════════════
+    grass_poly = np.array([[-300,-250],[-80,120],[150,280],[320,80],[280,-200],[40,-320],[-250,-300]])
     grass_mask = np.zeros(X.shape, dtype=bool)
-    for i in range(len(xs)):
-        for j in range(len(ys)):
-            if _point_in_poly_py(X[j, i], Y[j, i], grass_poly_xy) and 8 < Z[j, i] < 45:
-                grass_mask[j, i] = True
+    for i in range(res):
+        for j in range(res):
+            if _point_in_poly_py(X[j,i], Y[j,i], grass_poly) and 5 < Z[j,i] < 50:
+                grass_mask[j,i] = True
     if grass_mask.any():
-        g_pts = np.column_stack((X[grass_mask], Y[grass_mask], Z[grass_mask] + 0.15))
-        g_poly = pv.PolyData(g_pts)
+        g_pts = np.column_stack((X[grass_mask], Y[grass_mask], Z[grass_mask]+0.25))
+        gp = pv.PolyData(g_pts)
         try:
-            g_surf = g_poly.delaunay_2d()
+            gs = gp.delaunay_2d()
             actors["grassland"] = {
-                "mesh": g_surf, "type": "mesh", "visible": True,
-                "params": {"color": "#7dcea0", "opacity": 0.6, "smooth_shading": True},
-                "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 150.0}},
+                "mesh": gs, "type": "mesh", "visible": True,
+                "params": {"color": "#7dcea0", "opacity": 0.55, "smooth_shading": True},
+                "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 200}},
                 "name": "grassland",
             }
-        except Exception:
-            pass
+        except Exception: pass
 
-    # ── 森林区域（东北山区，Z>35m, 高大树木）──
-    # ITU-R P.833-9: in-leaf trees @ 2.8 GHz
-    # specific attenuation ≈ 0.3-0.5 dB/m, modeled as ε_r≈1.1, σ≈0.002, height 4m
-    forest_poly_xy = np.array([
-        [50, 50], [350, 100], [450, 300], [300, 450], [100, 350], [-50, 200], [50, 50]
-    ])
+    # ═══════════════════════════════════════════════════════════
+    #  5. 森林冠层（东北山区）— ITU-R P.833-9, 4m canopy
+    # ═══════════════════════════════════════════════════════════
+    forest_poly = np.array([[30,30],[320,80],[420,280],[280,420],[80,340],[-60,180],[30,30]])
     forest_mask = np.zeros(X.shape, dtype=bool)
-    for i in range(len(xs)):
-        for j in range(len(ys)):
-            if _point_in_poly_py(X[j, i], Y[j, i], forest_poly_xy) and Z[j, i] > 30:
-                forest_mask[j, i] = True
+    for i in range(res):
+        for j in range(res):
+            if _point_in_poly_py(X[j,i], Y[j,i], forest_poly) and Z[j,i] > 25:
+                forest_mask[j,i] = True
     if forest_mask.any():
-        f_pts = np.column_stack((X[forest_mask], Y[forest_mask], Z[forest_mask] + 0.3))
-        f_poly = pv.PolyData(f_pts)
+        f_pts = np.column_stack((X[forest_mask], Y[forest_mask], Z[forest_mask]+0.5))
+        fp = pv.PolyData(f_pts)
         try:
-            f_surf = f_poly.delaunay_2d()
-            actors["forest"] = {
-                "mesh": f_surf, "type": "mesh", "visible": True,
-                "params": {"color": "#1e8449", "opacity": 0.55, "smooth_shading": True},
-                "extra": {"material": {"label": "森林冠层", "eps_r": 1.1, "sigma": 0.002, "thickness_cm": 400.0}},
-                "name": "forest",
+            fs = fp.delaunay_2d()
+            actors["forest_canopy"] = {
+                "mesh": fs, "type": "mesh", "visible": True,
+                "params": {"color": "#1e8449", "opacity": 0.4, "smooth_shading": True},
+                "extra": {"material": {"label": "森林冠层", "eps_r": 1.1, "sigma": 0.002, "thickness_cm": 400}},
+                "name": "forest_canopy",
             }
-        except Exception:
-            pass
+        except Exception: pass
 
-    # ── 湖泊（东部盆地）──
-    lake_cx, lake_cy = -200.0, -150.0
-    lake_r = 60.0
-    n_theta_l, n_r_l = 40, 15
-    theta_l = np.linspace(0, 2 * np.pi, n_theta_l)
-    r_l = np.linspace(0, lake_r, n_r_l)
-    T_l, R_l = np.meshgrid(theta_l, r_l)
-    lx = lake_cx + R_l * np.cos(T_l)
-    ly = lake_cy + R_l * np.sin(T_l)
-    lz = np.full_like(lx, 2.5)
-    lake_grid = pv.StructuredGrid(lx, ly, lz)
+    # ═══════════════════════════════════════════════════════════
+    #  6. 独立树木（视觉森林 — 200+ 棵）
+    # ═══════════════════════════════════════════════════════════
+    tree_positions = []
+    # 密集林区
+    for _ in range(160):
+        tx = np.random.uniform(50, 380)
+        ty = np.random.uniform(80, 400)
+        tix = np.argmin(np.abs(xs - tx))
+        tiy = np.argmin(np.abs(ys - ty))
+        if _point_in_poly_py(tx, ty, forest_poly) and Z[tiy, tix] > 25:
+            tz = float(Z[tiy, tix])
+            h = np.random.uniform(3.0, 7.0)
+            tree_positions.append((tx, ty, tz, h, "#1e5a1e"))
+    # 稀疏林缘
+    for _ in range(50):
+        tx = np.random.uniform(-50, 420)
+        ty = np.random.uniform(20, 430)
+        tix = np.argmin(np.abs(xs - tx))
+        tiy = np.argmin(np.abs(ys - ty))
+        if _point_in_poly_py(tx, ty, forest_poly) and Z[tiy, tix] > 20:
+            tz = float(Z[tiy, tix])
+            h = np.random.uniform(2.0, 5.0)
+            tree_positions.append((tx, ty, tz, h, "#2d6b2d"))
+    # 孤立树木（草原上）
+    for _ in range(30):
+        tx = np.random.uniform(-300, 300)
+        ty = np.random.uniform(-300, 300)
+        tix = np.argmin(np.abs(xs - tx))
+        tiy = np.argmin(np.abs(ys - ty))
+        if not _point_in_poly_py(tx, ty, forest_poly) and Z[tiy, tix] > 8:
+            tz = float(Z[tiy, tix])
+            h = np.random.uniform(1.5, 4.0)
+            tree_positions.append((tx, ty, tz, h, "#3a7d3a"))
+
+    if tree_positions:
+        all_trees = []
+        for tx, ty, tz, h, color in tree_positions:
+            trunk_h = h * 0.5
+            trunk_r = h * 0.04
+            canopy_r = h * 0.25
+            trunk = pv.Cylinder(center=(tx, ty, tz + trunk_h/2), direction=(0,0,1),
+                                radius=trunk_r, height=trunk_h, resolution=6)
+            canopy = pv.Cone(center=(tx, ty, tz + trunk_h + canopy_r*0.6),
+                             direction=(0,0,1), radius=canopy_r, height=canopy_r*2.5, resolution=8)
+            tree = trunk.merge(canopy)
+            all_trees.append(tree)
+        all_trees_mesh = all_trees[0]
+        for t in all_trees[1:]:
+            all_trees_mesh = all_trees_mesh.merge(t)
+        actors["trees"] = {
+            "mesh": all_trees_mesh, "type": "mesh", "visible": True,
+            "params": {"color": "#2d6b2d", "smooth_shading": False, "opacity": 0.9,
+                       "ambient": 0.2, "diffuse": 0.8},
+            "extra": None, "name": "trees",
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    #  7. 岩石山体（视觉岩层 — 50+ 块）
+    # ═══════════════════════════════════════════════════════════
+    rock_colors = ["#6b6b6b", "#787878", "#5a5a5a", "#8a8078", "#706860", "#606060"]
+    all_rocks = []
+    # 主山脊岩石群
+    for _ in range(30):
+        rx = np.random.uniform(120, 350)
+        ry = np.random.uniform(80, 300)
+        rix = np.argmin(np.abs(xs - rx))
+        riy = np.argmin(np.abs(ys - ry))
+        rz = float(Z[riy, rix])
+        if rz > 30:
+            s = np.random.uniform(3, 12)
+            rock = pv.Icosahedron(radius=s)
+            rock = rock.subdivide(1, subfilter="linear")
+            rock.points += np.array([rx, ry, rz - s*0.3])
+            rock.points += np.random.randn(*rock.points.shape) * s * 0.1
+            all_rocks.append(rock)
+    # 高原边缘碎石
+    for _ in range(15):
+        rx = np.random.uniform(-380, -160)
+        ry = np.random.uniform(130, 330)
+        rix = np.argmin(np.abs(xs - rx))
+        riy = np.argmin(np.abs(ys - ry))
+        rz = float(Z[riy, rix])
+        if 30 < rz < 45:
+            s = np.random.uniform(2, 8)
+            rock = pv.Icosahedron(radius=s)
+            rock.points += np.array([rx, ry, rz - s*0.2])
+            all_rocks.append(rock)
+    # 散落岩石（全图）
+    for _ in range(20):
+        rx = np.random.uniform(-450, 450)
+        ry = np.random.uniform(-450, 450)
+        rix = np.argmin(np.abs(xs - rx))
+        riy = np.argmin(np.abs(ys - ry))
+        rz = float(Z[riy, rix])
+        s = np.random.uniform(1, 5)
+        rock = pv.Icosahedron(radius=s)
+        rock.points += np.array([rx, ry, rz])
+        all_rocks.append(rock)
+    if all_rocks:
+        rocks_mesh = all_rocks[0]
+        for r in all_rocks[1:]:
+            rocks_mesh = rocks_mesh.merge(r)
+        actors["rocks"] = {
+            "mesh": rocks_mesh, "type": "mesh", "visible": True,
+            "params": {"color": "#7a7a7a", "smooth_shading": True, "opacity": 0.95,
+                       "ambient": 0.15, "diffuse": 0.7, "specular": 0.2, "specular_power": 10},
+            "extra": None, "name": "rocks",
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    #  8. 水体 — 主湖 + 小水塘
+    # ═══════════════════════════════════════════════════════════
+    # 主湖
+    lake_cx, lake_cy, lake_r = -180.0, -140.0, 55.0
+    ntl, nrl = 50, 20
+    tl = np.linspace(0, 2*np.pi, ntl)
+    rl = np.linspace(0, lake_r, nrl)
+    Tl, Rl = np.meshgrid(tl, rl)
+    lx = lake_cx + Rl*np.cos(Tl)
+    ly = lake_cy + Rl*np.sin(Tl)
+    lz = np.full_like(lx, 2.2)
     actors["lake"] = {
-        "mesh": lake_grid, "type": "mesh", "visible": True,
-        "params": {"color": "#1a5276", "opacity": 0.65, "smooth_shading": True},
-        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 200.0}},
+        "mesh": pv.StructuredGrid(lx, ly, lz), "type": "mesh", "visible": True,
+        "params": {"color": "#1a5276", "opacity": 0.6, "smooth_shading": True},
+        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 250}},
         "name": "lake",
     }
+    # 小水塘
+    for px, py, pr in [(-300, 50, 20), (100, -250, 15), (350, -100, 12)]:
+        ntp, nrp = 25, 8
+        tp = np.linspace(0, 2*np.pi, ntp)
+        rp = np.linspace(0, pr, nrp)
+        Tp, Rp = np.meshgrid(tp, rp)
+        pond = pv.StructuredGrid(px+Rp*np.cos(Tp), py+Rp*np.sin(Tp), np.full_like(Rp, 1.5))
+        actors[f"pond_{px:.0f}"] = {
+            "mesh": pond, "type": "mesh", "visible": True,
+            "params": {"color": "#2471a3", "opacity": 0.55, "smooth_shading": True},
+            "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 100}},
+            "name": f"pond_{px:.0f}",
+        }
 
-    # ── 点植被标记（散布的灌木丛点）──
-    n_bushes = 200
-    np.random.seed(42)
-    bush_x = np.random.uniform(-400, 400, n_bushes)
-    bush_y = np.random.uniform(-400, 400, n_bushes)
-    bush_z_vals = np.zeros(n_bushes)
-    for k in range(n_bushes):
-        ix = np.argmin(np.abs(xs - bush_x[k]))
-        iy = np.argmin(np.abs(ys - bush_y[k]))
-        bush_z_vals[k] = Z[iy, ix] + 0.2
-    bush_pts = pv.PolyData(np.column_stack((bush_x, bush_y, bush_z_vals)))
+    # ═══════════════════════════════════════════════════════════
+    #  9. 灌木丛点
+    # ═══════════════════════════════════════════════════════════
+    n_bush = 350
+    bush_x = np.random.uniform(-450, 450, n_bush)
+    bush_y = np.random.uniform(-450, 450, n_bush)
+    bush_z = np.array([float(Z[np.argmin(np.abs(ys-bush_y[k])), np.argmin(np.abs(xs-bush_x[k]))])+0.15
+                       for k in range(n_bush)])
     actors["bushes"] = {
-        "mesh": bush_pts, "type": "points", "visible": True,
-        "params": {"color": "#6b8e23", "point_size": 6, "opacity": 0.7},
-        "extra": None,
-        "name": "bushes",
+        "mesh": pv.PolyData(np.column_stack((bush_x, bush_y, bush_z))),
+        "type": "points", "visible": True,
+        "params": {"color": "#6b8e23", "point_size": 5, "opacity": 0.6},
+        "extra": None, "name": "bushes",
     }
 
-    # ── 天线 ──
+    # ═══════════════════════════════════════════════════════════
+    #  10. 枯木/倒木
+    # ═══════════════════════════════════════════════════════════
+    dead_trees = []
+    for _ in range(15):
+        dx = np.random.uniform(-400, 400)
+        dy = np.random.uniform(-400, 400)
+        dix = np.argmin(np.abs(xs-dx)); diy = np.argmin(np.abs(ys-dy))
+        dz = float(Z[diy, dix]) + 0.1
+        h = np.random.uniform(1, 3)
+        angle = np.random.uniform(0, np.pi)
+        trunk = pv.Cylinder(center=(dx, dy, dz+h/2), direction=(np.cos(angle), np.sin(angle), 0.3),
+                            radius=0.15, height=h, resolution=5)
+        dead_trees.append(trunk)
+    if dead_trees:
+        dt_mesh = dead_trees[0]
+        for dt in dead_trees[1:]: dt_mesh = dt_mesh.merge(dt)
+        actors["deadwood"] = {
+            "mesh": dt_mesh, "type": "mesh", "visible": True,
+            "params": {"color": "#8b7355", "smooth_shading": False, "opacity": 0.8},
+            "extra": None, "name": "deadwood",
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    #  11. 天线
+    # ═══════════════════════════════════════════════════════════
     ANT = (-400.0, 0.0, 55.0)
-    ix_a = np.argmin(np.abs(xs - ANT[0]))
-    iy_a = np.argmin(np.abs(ys - ANT[1]))
-    ant_tz = float(Z[iy_a, ix_a])
+    ant_ix = np.argmin(np.abs(xs-ANT[0])); ant_iy = np.argmin(np.abs(ys-ANT[1]))
+    ant_tz = float(Z[ant_iy, ant_ix])
     sphere = pv.Sphere(radius=1.5, center=ANT)
-    pole_base = max(ant_tz, 0.0)
-    h = ANT[2]
-    pole = pv.Cylinder(center=(ANT[0], ANT[1], (pole_base + h) / 2),
-                       direction=(0, 0, 1), radius=0.5, height=h - pole_base)
+    pb = max(ant_tz, 0.0)
+    pole = pv.Cylinder(center=(ANT[0], ANT[1], (pb+ANT[2])/2), direction=(0,0,1),
+                       radius=0.5, height=ANT[2]-pb)
     actors["antenna"] = {
         "mesh": sphere.merge([pole]), "type": "mesh", "visible": True,
         "params": {"color": "#e63946", "smooth_shading": True, "opacity": 1.0,
@@ -426,10 +603,7 @@ def build_wilderness():
                   "antenna_config": dict(DEFAULT_ANTENNA_CONFIG)},
         "name": "antenna",
     }
-
     return actors
-
-
 def _point_in_poly_py(x, y, poly):
     """Python版点包含测试（用于构建阶段）。"""
     n = len(poly); inside = False
