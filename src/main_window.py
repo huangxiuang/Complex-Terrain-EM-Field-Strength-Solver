@@ -726,7 +726,18 @@ class MainWindow(QtWidgets.QMainWindow):
             # 同步位置到场景
             new_pos = new_config.get("position", cur_pos)
             ant["extra"]["position"] = new_pos
-            # 更新可视化：移除旧天线标记，重建新的
+            # 检查天线是否低于地形
+            terrain = self.scene_objects.get("terrain")
+            if terrain:
+                from src.physics.terrain import sample_terrain
+                tz = sample_terrain(terrain["mesh"], np.array([new_pos[0]]), np.array([new_pos[1]]))[0]
+                if new_pos[2] <= tz + 0.5:
+                    QtWidgets.QMessageBox.warning(
+                        self, "天线位置异常",
+                        f"天线高度 {new_pos[2]:.1f}m 低于此处地形 {tz:.1f}m！\n"
+                        f"电磁波将被地面吸收，建议天线高度至少设为 {tz+5:.0f}m 以上。"
+                    )
+            # 更新可视化
             self._rebuild_antenna_marker(new_pos)
             self.statusBar().showMessage(
                 f"天线已更新：{new_config['type']} @ {new_config['frequency']/1e9:.1f} GHz — 请重新求解"
