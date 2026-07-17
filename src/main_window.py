@@ -261,17 +261,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _draw_rx_markers(self):
         self._clear_rx_markers()
-        for i, (x, y, z) in enumerate(self._pending_rx_points):
-            sphere = pv.Sphere(radius=0.15, center=(x, y, z))
-            name = f"__rx_{i}"
-            actor = self.plotter.add_mesh(sphere, color="#FF5722", ambient=0.5)
-            self.plotter_actors[name] = actor
+        pts = np.array(self._pending_rx_points) if self._pending_rx_points else np.empty((0, 3))
+        if len(pts) == 0:
+            return
+        labels = [str(i + 1) for i in range(len(pts))]
+        self.plotter.add_point_labels(
+            pts, labels, font_size=14, text_color="white",
+            shape_color="#FF5722", shape="circle", point_size=12,
+            name="__rx_labels", always_visible=True, shadow=True,
+        )
         self.plotter.render()
 
     def _clear_rx_markers(self):
         for name in list(self.plotter_actors.keys()):
             if name.startswith("__rx_"):
                 self.plotter.remove_actor(self.plotter_actors.pop(name))
+        # 清除标签
+        try:
+            self.plotter.remove_actor("__rx_labels")
+        except Exception:
+            pass
         self.plotter.render()
 
     def _update_rx_tree(self):
