@@ -263,12 +263,19 @@ def build_wilderness():
     # ═══════════════════════════════════════════════════════════
     #  1. 地形（山脉融于 Z）+ 挖河
     # ═══════════════════════════════════════════════════════════
+    # 多噪声起伏 + 山脉 + 丘陵
     Z = (
-        120*np.exp(-((X-200)**2+(Y-150)**2)/25000) + 100*np.exp(-((X-300)**2+(Y-280)**2)/20000) +
+        130*np.exp(-((X-200)**2+(Y-150)**2)/25000) + 100*np.exp(-((X-300)**2+(Y-280)**2)/20000) +
         80*np.exp(-((X-350)**2+(Y+20)**2)/18000) + 60*np.exp(-((X-100)**2+(Y-250)**2)/30000) +
-        30*np.exp(-((X+40)**2+(Y+60)**2)/40000) + 20*np.exp(-((X-120)**2+(Y+180)**2)/35000) +
-        5*np.sin(X*0.01)*np.cos(Y*0.015) + 3*np.cos(X*0.02)*np.sin(Y*0.025) +
-        2*np.sin(X*0.04-Y*0.03) + 5.0
+        40*np.exp(-((X+50)**2+(Y+100)**2)/25000) + 35*np.exp(-((X-150)**2+(Y-300)**2)/28000) +
+        30*np.exp(-((X+200)**2+(Y-80)**2)/30000) + 25*np.exp(-((X-250)**2+(Y+200)**2)/35000) +
+        20*np.exp(-((X+300)**2+(Y+250)**2)/32000) +
+        # 小丘陵
+        15*np.exp(-((X+100)**2+(Y-150)**2)/8000) + 12*np.exp(-((X-50)**2+(Y+50)**2)/10000) +
+        10*np.exp(-((X+250)**2+(Y-100)**2)/12000) + 8*np.exp(-((X-200)**2+(Y-50)**2)/9000) +
+        # 地表纹理
+        4*np.sin(X*0.012)*np.cos(Y*0.015) + 3*np.cos(X*0.025)*np.sin(Y*0.02) +
+        2*np.sin(X*0.04-Y*0.035) + 1.5*np.cos(X*0.06+Y*0.05) + 6.0
     )
     # 挖河道
     for i in range(res):
@@ -301,6 +308,8 @@ def build_wilderness():
     try:
         rk = grid.extract_surface().threshold([40, 200], scalars="elevation", preference="point")
         if rk.n_points > 10:
+            # 抬高 0.5m 防止 z-fighting
+            rk.points[:, 2] += 0.5
             actors["rock_face"] = {
                 "mesh": rk, "type": "mesh", "visible": True,
                 "params": {"color": "#7a7a7a", "smooth_shading": True, "opacity": 0.85,
@@ -357,18 +366,18 @@ def build_wilderness():
     # ═══════════════════════════════════════════════════════════
     #  4. 植被分区
     # ═══════════════════════════════════════════════════════════
-    # 草地 (西部, 20<Z<60)
-    n_grass = 5000; gx=[]; gy=[]; gz=[]
-    for _ in range(n_grass):
-        tx=np.random.uniform(-400,0); ty=np.random.uniform(-300,300)
-        gix=np.argmin(np.abs(xs-tx)); giy=np.argmin(np.abs(ys-ty))
-        if 20<Z[giy,gix]<60:
-            gx.append(tx); gy.append(ty); gz.append(Z[giy,gix]+0.05)
-    if gx: actors["grassland"] = {
-        "mesh": pv.PolyData(np.column_stack((gx,gy,gz))), "type": "points", "visible": True,
-        "params": {"color": "#4a8c3f", "point_size": 4, "opacity": 0.7},
-        "extra": None, "name": "grassland",
-    }
+    # 草地 (西部, 20<Z<60) — 密集覆盖
+    grass_mask = (X > -400) & (X < 0) & (Y > -300) & (Y < 300) & (Z > 20) & (Z < 60)
+    if grass_mask.any():
+        gp = np.column_stack((X[grass_mask], Y[grass_mask], Z[grass_mask] + 0.3))
+        actors["grassland"] = {
+            "mesh": pv.PolyData(gp).delaunay_2d(),
+            "type": "mesh", "visible": True,
+            "params": {"color": "#5a9e4c", "opacity": 0.6, "smooth_shading": True},
+            "extra": {"material": {"label": "草地", "eps_r": 1.2, "sigma": 0.00006, "thickness_cm": 100},
+                      "is_material_layer": True},
+            "name": "grassland",
+        }
     # 稀疏林 (南部, Z<40)
     st=[]; 
     for _ in range(120):
