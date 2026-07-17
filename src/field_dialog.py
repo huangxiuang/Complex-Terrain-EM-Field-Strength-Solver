@@ -375,7 +375,7 @@ class PreciseRxDialog(QtWidgets.QDialog):
         z_ctrl = QtWidgets.QHBoxLayout()
         z_ctrl.addWidget(QtWidgets.QLabel("选中点 Z:"))
         self._z_spin = QtWidgets.QDoubleSpinBox()
-        self._z_spin.setRange(-10, 50); self._z_spin.setDecimals(3)
+        self._z_spin.setRange(-10, 200); self._z_spin.setDecimals(3)
         self._z_spin.valueChanged.connect(self._on_z_spin)
         z_ctrl.addWidget(self._z_spin)
         self._z_info = QtWidgets.QLabel("点击图表选择点")
@@ -462,7 +462,7 @@ class PreciseRxDialog(QtWidgets.QDialog):
         if 0<=self._selected_idx<len(dists):
             self._ax2.plot(dists[self._selected_idx],zs[self._selected_idx],"o",color="red",markersize=12)
         self._ax2.set_xlabel("累积距离 (m)"); self._ax2.set_ylabel("Z (m)")
-        self._ax2.set_ylim(-5, 50)
+        self._ax2.set_ylim(-5, 200)
         self._ax2.grid(True, alpha=0.3)
         self._canvas2.draw_idle()
 
