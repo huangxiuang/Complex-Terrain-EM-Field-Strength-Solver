@@ -155,6 +155,25 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
                     ng[pi, inside] = nc; cg[pi, inside] = cond
                     nl[pi, inside] = nc; cl[pi, inside] = cond
 
+        # 材质层（沙地/草地/森林冠层）— 作为裁剪层叠加在地形上
+        for nm_key, o in scene.items():
+            extra = o.get("extra") or {}
+            if not extra.get("is_material_layer"):
+                continue
+            msh = o.get("mesh")
+            if msh is None: continue
+            m = extra.get("material")
+            if m is None: continue
+            thick = m.get("thickness_cm", 0.0) / 100.0
+            if thick <= 0: continue
+            b = msh.bounds
+            inside = ((xp >= b[0]) & (xp <= b[1]) &
+                      (yp >= b[2]) & (yp <= b[3]))
+            if not inside.any(): continue
+            zt[pi, inside] = np.maximum(zt[pi, inside], zg[pi, inside] + thick)
+            nc, cond = resolve_material(freq, m)
+            nl[pi, inside] = nc; cl[pi, inside] = cond
+
         # 裁剪图层
         clips = [(k, o) for k, o in scene.items() if "_clip" in k]
         clips.sort(key=lambda x: _clip_counter(x[0]))
