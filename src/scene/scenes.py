@@ -524,7 +524,7 @@ def build_wilderness():
         ix = np.argmin(np.abs(xs - x)); iy = np.argmin(np.abs(ys - y))
         return float(Z[iy, ix])
 
-    lake_cx, lake_cy, lake_r = -300.0, -350.0, 70.0
+    lake_cx, lake_cy, lake_r = -300.0, -350.0, 45.0
     ntl, nrl = 50, 20
     tl = np.linspace(0, 2*np.pi, ntl)
     rl = np.linspace(0, lake_r, nrl)
@@ -534,12 +534,12 @@ def build_wilderness():
     lz = np.maximum(np.full_like(lx, _terrain_z_at(lake_cx, lake_cy) + 0.3), 0.5)
     actors["lake"] = {
         "mesh": pv.StructuredGrid(lx, ly, np.full_like(lx, lz[0,0])), "type": "mesh", "visible": True,
-        "params": {"color": "#1a5276", "opacity": 0.55, "smooth_shading": True,
-                   "specular": 0.8, "specular_power": 80, "ambient": 0.2},
+        "params": {"color": "#0d4f4f", "opacity": 0.6, "smooth_shading": True,
+                   "specular": 0.6, "specular_power": 50, "ambient": 0.2},
         "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 250}},
         "name": "lake",
     }
-    for px, py, pr in [(-200, -400, 25), (0, -300, 18), (300, -200, 15)]:
+    for px, py, pr in [(-200, -400, 12), (0, -300, 10), (300, -200, 8)]:
         ntp, nrp = 25, 8
         tp = np.linspace(0, 2*np.pi, ntp)
         rp = np.linspace(0, pr, nrp)
@@ -548,7 +548,7 @@ def build_wilderness():
         pond = pv.StructuredGrid(px+Rp*np.cos(Tp), py+Rp*np.sin(Tp), np.full_like(Rp, pz))
         actors[f"pond_{px:.0f}"] = {
             "mesh": pond, "type": "mesh", "visible": True,
-            "params": {"color": "#2471a3", "opacity": 0.5, "smooth_shading": True,
+            "params": {"color": "#0d4f4f", "opacity": 0.55, "smooth_shading": True,
                        "specular": 0.7, "specular_power": 60, "ambient": 0.2},
             "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 100}},
             "name": f"pond_{px:.0f}",
