@@ -330,7 +330,7 @@ def build_wilderness():
     Rx = 3.0*np.sin(Ry*0.3) + Rw
     # 采样河道中心线地形
     river_center_z = np.array([Z[np.argmin(np.abs(ys-yy)), np.argmin(np.abs(xs-3.0*np.sin(yy*0.3)))] for yy in ry])
-    river_z_surface = np.tile(river_center_z[:, np.newaxis], (1, nw)) + 0.2
+    river_z_surface = np.tile(river_center_z, (nw, 1)) + 0.2
     actors["river"] = {
         "mesh": pv.StructuredGrid(Rx, Ry, river_z_surface),
         "type": "mesh", "visible": True,
