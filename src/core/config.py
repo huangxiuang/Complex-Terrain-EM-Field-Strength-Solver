@@ -25,7 +25,7 @@ class EMConfig:
     n_phi: int = 128
     dr_factor: float = 1.0            # 步长 = dr_factor * lambda
     r0_factor: float = 2.0            # 起始半径 = r0_factor * lambda
-    z_pad_above: float = 20.0         # 高度网格上方留白
+    z_pad_above: float = 500.0         # 高度网格上方留白，推高 taper 区
 
     # ── TWPE (暂不使用) ──
     twpe_max_iter: int = 0
