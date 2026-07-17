@@ -261,13 +261,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _draw_rx_markers(self):
         self._clear_rx_markers()
-        pts = np.array(self._pending_rx_points) if self._pending_rx_points else np.empty((0, 3))
+        pts = np.array(self._pending_rx_points, dtype=np.float32) if self._pending_rx_points else np.empty((0, 3))
         if len(pts) == 0:
             return
         labels = [str(i + 1) for i in range(len(pts))]
         self.plotter.add_point_labels(
             pts, labels, font_size=14, text_color="white",
-            shape_color="#FF5722", shape="circle", point_size=12,
+            shape_color="#FF5722", point_size=12,
             name="__rx_labels", always_visible=True, shadow=True,
         )
         self.plotter.render()
