@@ -729,8 +729,13 @@ class MainWindow(QtWidgets.QMainWindow):
             # 更新可视化：移除旧天线标记，重建新的
             self._rebuild_antenna_marker(new_pos)
             self.statusBar().showMessage(
-                f"天线已更新：{new_config['type']} @ {new_config['frequency']/1e9:.1f} GHz"
+                f"天线已更新：{new_config['type']} @ {new_config['frequency']/1e9:.1f} GHz — 请重新求解"
             )
+            # 清空旧场数据，强制重新求解
+            self._last_field_data = None
+            self._last_results = None
+            self._btn_plot.setEnabled(False)
+            self._update_results_tree(None)
 
     def _rebuild_antenna_marker(self, new_pos):
         import pyvista as pv
