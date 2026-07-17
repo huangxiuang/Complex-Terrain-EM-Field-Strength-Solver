@@ -435,6 +435,3 @@ def build_wilderness():
         "name": "antenna",
     }
     return actors
-        "name": "antenna",
-    }
-    return actors
