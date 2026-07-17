@@ -24,6 +24,7 @@ from src.sweep_dialog import SweepDialog
 from src.scene.scenes import SCENE_REGISTRY, build_metal_barrier
 from src.scene.scene_dialog import SceneSelectDialog, ScenePropsDialog
 from src.plot_dialog import PlotDialog
+from src.template_dialog import TemplateDialog
 
 import matplotlib.path as mpath
 
@@ -132,6 +133,10 @@ class MainWindow(QtWidgets.QMainWindow):
         menu_scene = mb.addMenu("场景 (&S)")
         menu_scene.addAction("场景选择…", self._on_select_scene)
         menu_scene.addAction("场景属性…", self._on_scene_props)
+
+        # ── Template menu ──
+        menu_preset = mb.addMenu("预设 (&T)")
+        menu_preset.addAction("模版测量点…", self._on_template)
 
         # ── View menu ──
         menu_view = mb.addMenu("视图 (&V)")
@@ -394,6 +399,24 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_scene_props(self):
         dlg = ScenePropsDialog(self, self.scene_objects)
         dlg.exec_()
+
+    def _on_template(self):
+        dlg = TemplateDialog(self, self._current_scene_key)
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
+        t = dlg.selected_template()
+        if t is None:
+            return
+        pts = t.get("points", [])
+        self._pending_rx_points.extend(pts)
+        self._draw_rx_markers()
+        self._update_solve_ui()
+        self._update_rx_tree()
+        self._last_results = None
+        self._update_results_tree(None)
+        self._last_field_data = None
+        self._btn_plot.setEnabled(False)
+        self.statusBar().showMessage(f"已加载模版：{t['name']}（+{len(pts)} 点）")
 
     def _load_scene(self):
         # 清除旧场景
