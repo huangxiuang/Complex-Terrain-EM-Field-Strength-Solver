@@ -136,8 +136,8 @@ class PlotDialog(QtWidgets.QDialog):
                     # 叠加地形线
                     ax = fig.axes[0]
                     if terrain_z_profile is not None:
-                        ax.fill_between(r, 0, terrain_z_profile, color='#5a4a30', alpha=0.35, zorder=1)
-                        ax.plot(r, terrain_z_profile, 'k-', linewidth=1.5, zorder=2)
+                        ax.plot(r, terrain_z_profile, 'w-', linewidth=2, zorder=10)
+                        ax.fill_between(r, 0, terrain_z_profile, color='black', alpha=0.5, zorder=1)
                     figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", fig))
                 else:
                     E_db = 20*np.log10(np.maximum(u_slice,1e-15))
