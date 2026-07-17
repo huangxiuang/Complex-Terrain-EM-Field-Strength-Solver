@@ -125,13 +125,20 @@ class PlotDialog(QtWidgets.QDialog):
                 pi = np.argmin(np.abs(phi - np.radians(phi_deg.value())))
                 u_slice = np.abs(u[:, pi, :]); R, Z = np.meshgrid(r, z, indexing="ij")
                 if key == "rz_tl":
-                    # 统一参考：r0 处天线高度 φ=0
                     zi_ant = np.argmin(np.abs(z - cfg.antenna_pos[2]))
                     E_ref = np.abs(u[0, pi, zi_ant]) or 1e-30
                     TL = -20*np.log10(np.maximum(u_slice/E_ref, 1e-15))
                     for ri2 in range(len(r)): TL[ri2,:] += 10*np.log10(max(r[ri2]/r0, 1.0))
                     TL = np.nan_to_num(TL, nan=200, posinf=200, neginf=0)
-                    figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", self._contour(R,Z,TL,"TL (dB)",f"r-z TL分布 φ={phi_deg.value():.0f}°","jet",cfg)))
+                    # 地形剖面
+                    terrain_z_profile = self._get_terrain_profile(r, phi[pi], cfg)
+                    fig = self._contour(R,Z,TL,"TL (dB)",f"r-z TL分布 φ={phi_deg.value():.0f}°","jet",cfg)
+                    # 叠加地形线
+                    ax = fig.axes[0]
+                    if terrain_z_profile is not None:
+                        ax.fill_between(r, 0, terrain_z_profile, color='#5a4a30', alpha=0.6, zorder=3)
+                        ax.plot(r, terrain_z_profile, 'k-', linewidth=1.5, zorder=4)
+                    figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", fig))
                 else:
                     E_db = 20*np.log10(np.maximum(u_slice,1e-15))
                     E_db = np.nan_to_num(E_db, nan=-200, neginf=-200)
@@ -205,6 +212,32 @@ class PlotDialog(QtWidgets.QDialog):
         # 在新独立窗口显示
         self._viewer = FigureViewer(figs, self, self._data)
         self._viewer.show()
+
+    def _get_terrain_profile(self, r_vals, phi_rad, cfg):
+        """采样地形高度沿 phi 方向的剖面。"""
+        scene = self._data.get("scene")
+        if scene is None: return None
+        terrain = scene.get("terrain")
+        if terrain is None: return None
+        extra = terrain.get("extra") or {}
+        Z = extra.get("original_z"); X = extra.get("X"); Y = extra.get("Y")
+        if Z is None or X is None: return None
+        xs = X[0, :]; ys = Y[:, 0]
+        ant = cfg.antenna_pos
+        c, s = np.cos(phi_rad), np.sin(phi_rad)
+        profile = np.empty(len(r_vals))
+        for i, rv in enumerate(r_vals):
+            xp = ant[0] + rv * c; yp = ant[1] + rv * s
+            xp = max(xs[0], min(xp, xs[-1]))
+            yp = max(ys[0], min(yp, ys[-1]))
+            ix = max(0, min(np.searchsorted(xs, xp) - 1, len(xs) - 2))
+            iy = max(0, min(np.searchsorted(ys, yp) - 1, len(ys) - 2))
+            x1, x2 = xs[ix], xs[ix + 1]; y1, y2 = ys[iy], ys[iy + 1]
+            dx = (xp - x1) / (x2 - x1) if x2 != x1 else 0.5
+            dy = (yp - y1) / (y2 - y1) if y2 != y1 else 0.5
+            profile[i] = (Z[iy, ix]*(1-dx)*(1-dy) + Z[iy, ix+1]*dx*(1-dy) +
+                          Z[iy+1, ix]*(1-dx)*dy + Z[iy+1, ix+1]*dx*dy)
+        return profile
 
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(10, 6))
