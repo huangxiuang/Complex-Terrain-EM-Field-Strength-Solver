@@ -136,8 +136,8 @@ class PlotDialog(QtWidgets.QDialog):
                     # 叠加地形线
                     ax = fig.axes[0]
                     if terrain_z_profile is not None:
-                        ax.fill_between(r, 0, terrain_z_profile, color='#5a4a30', alpha=0.6, zorder=3)
-                        ax.plot(r, terrain_z_profile, 'k-', linewidth=1.5, zorder=4)
+                        ax.fill_between(r, 0, terrain_z_profile, color='#5a4a30', alpha=0.35, zorder=1)
+                        ax.plot(r, terrain_z_profile, 'k-', linewidth=1.5, zorder=2)
                     figs.append((f"r-z TL分布 φ={phi_deg.value():.0f}°", fig))
                 else:
                     E_db = 20*np.log10(np.maximum(u_slice,1e-15))
@@ -271,7 +271,7 @@ class PlotDialog(QtWidgets.QDialog):
 
         # pcolormesh + Gouraud 平滑 → 无锯齿、无漏白
         cf = ax.pcolormesh(X, Y, data, shading="gouraud", cmap=_cmap,
-                           vmin=vmin, vmax=vmax)
+                           vmin=vmin, vmax=vmax, zorder=5, rasterized=True)
         cbar = fig.colorbar(cf, ax=ax, label=cbar_label, extend="both")
         # 判断轴类型：有负值→φ轴，全是正→r轴
         is_phi = (X.min() < 0)
