@@ -86,10 +86,10 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
         xp = antenna[0] + r_vals * c
         yp = antenna[1] + r_vals * s
 
-        # 地面
+        # 地面 — use original Z array for accuracy
         t = scene.get("terrain")
         if t is not None:
-            gz = sample_terrain(t["mesh"], xp, yp)
+            gz = _fast_sample_terrain(t, xp, yp)
             zg[pi, :] = gz; zt[pi, :] = gz
             m = get_material(t)
             if m is not None:
@@ -132,7 +132,15 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
             extra = o.get("extra") or {}
             if extra.get("obstacle_type") == "wall":
                 continue
+            if extra.get("is_material_layer"):
+                continue
             if o.get("type") != "mesh": continue
+            # 只处理有材料但非材质层的对象
+            extra_o = o.get("extra") or {}
+            if extra_o.get("is_material_layer"):
+                continue
+            if extra_o.get("material") is None and extra_o.get("obstacle_type") != "wall":
+                continue
             msh = o.get("mesh")
             if msh is None: continue
             b = msh.bounds
@@ -175,6 +183,29 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
                         nl[pi, inside] = nc; cl[pi, inside] = cond
 
     return zg, zt, ng, cg, nl, cl
+
+
+def _fast_sample_terrain(t, xp, yp):
+    """直接读 original_z 数组做双线性插值，比 sample_terrain 快且准。"""
+    extra = t.get("extra") or {}
+    Z = extra.get("original_z")
+    X = extra.get("X")
+    Y = extra.get("Y")
+    if Z is None or X is None:
+        return sample_terrain(t["mesh"], xp, yp)
+    xs = X[0, :]; ys = Y[:, 0]
+    nx, ny = len(xs), len(ys)
+    r = np.empty(len(xp), dtype=np.float32)
+    for i in range(len(xp)):
+        x, y = xp[i], yp[i]
+        ix = max(0, min(np.searchsorted(xs, x) - 1, nx - 2))
+        iy = max(0, min(np.searchsorted(ys, y) - 1, ny - 2))
+        x1, x2 = xs[ix], xs[ix + 1]; y1, y2 = ys[iy], ys[iy + 1]
+        dx = (x - x1) / (x2 - x1) if x2 != x1 else 0.5
+        dy = (y - y1) / (y2 - y1) if y2 != y1 else 0.5
+        r[i] = (Z[iy, ix] * (1 - dx) * (1 - dy) + Z[iy, ix + 1] * dx * (1 - dy) +
+                Z[iy + 1, ix] * (1 - dx) * dy + Z[iy + 1, ix + 1] * dx * dy)
+    return r
 
 
 def _clip_counter(name):

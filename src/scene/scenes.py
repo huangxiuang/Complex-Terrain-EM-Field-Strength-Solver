@@ -336,7 +336,7 @@ def build_wilderness():
         "params": {"color": "#b8956a", "smooth_shading": True, "opacity": 1.0,
                    "ambient": 0.1, "diffuse": 0.9, "specular": 0.1, "specular_power": 10},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
-                  "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
+                  "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 1e6}},
         "name": "terrain",
     }
 
@@ -357,7 +357,8 @@ def build_wilderness():
             actors["sand_zone"] = {
                 "mesh": ss, "type": "mesh", "visible": True,
                 "params": {"color": "#e8c76a", "opacity": 0.75, "smooth_shading": True},
-                "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 30}},
+                "extra": {"material": {"label": "沙地", "eps_r": 3.0, "sigma": 0.001, "thickness_cm": 30},
+                          "is_material_layer": True},
                 "name": "sand_zone",
             }
         except Exception: pass
@@ -379,7 +380,8 @@ def build_wilderness():
             actors["grassland"] = {
                 "mesh": gs, "type": "mesh", "visible": True,
                 "params": {"color": "#7dcea0", "opacity": 0.55, "smooth_shading": True},
-                "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 200}},
+                "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 200},
+                          "is_material_layer": True},
                 "name": "grassland",
             }
         except Exception: pass
@@ -401,7 +403,8 @@ def build_wilderness():
             actors["forest_canopy"] = {
                 "mesh": fs, "type": "mesh", "visible": True,
                 "params": {"color": "#1e8449", "opacity": 0.4, "smooth_shading": True},
-                "extra": {"material": {"label": "森林冠层", "eps_r": 1.1, "sigma": 0.002, "thickness_cm": 400}},
+                "extra": {"material": {"label": "森林冠层", "eps_r": 1.1, "sigma": 0.002, "thickness_cm": 400},
+                          "is_material_layer": True},
                 "name": "forest_canopy",
             }
         except Exception: pass
@@ -535,7 +538,8 @@ def build_wilderness():
         "mesh": pv.StructuredGrid(lx, ly, np.full_like(lx, lz[0,0])), "type": "mesh", "visible": True,
         "params": {"color": "#0d4f4f", "opacity": 0.6, "smooth_shading": True,
                    "specular": 0.6, "specular_power": 50, "ambient": 0.2},
-        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 250}},
+        "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 250},
+                  "is_material_layer": True},
         "name": "lake",
     }
     for px, py, pr in [(-200, -400, 12), (0, -300, 10), (300, -200, 8)]:
@@ -549,7 +553,8 @@ def build_wilderness():
             "mesh": pond, "type": "mesh", "visible": True,
             "params": {"color": "#0d4f4f", "opacity": 0.55, "smooth_shading": True,
                        "specular": 0.7, "specular_power": 60, "ambient": 0.2},
-            "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 100}},
+            "extra": {"material": {"label": "水面（淡水）", "eps_r": 80.0, "sigma": 0.01, "thickness_cm": 100},
+                      "is_material_layer": True},
             "name": f"pond_{px:.0f}",
         }
 
@@ -594,7 +599,7 @@ def build_wilderness():
     # ═══════════════════════════════════════════════════════════
     #  11. 天线
     # ═══════════════════════════════════════════════════════════
-    ANT = (-400.0, 0.0, 85.0)
+    ANT = (-400.0, 0.0, 60.0)
     ant_ix = np.argmin(np.abs(xs-ANT[0])); ant_iy = np.argmin(np.abs(ys-ANT[1]))
     ant_tz = float(Z[ant_iy, ant_ix])
     sphere = pv.Sphere(radius=1.5, center=ANT)
@@ -607,8 +612,8 @@ def build_wilderness():
                    "ambient": 0.5, "diffuse": 0.9, "specular": 0.5, "specular_power": 50},
         "extra": {"position": ANT, "is_source": True,
                   "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0,
-                                         fast_nz=768, fast_nphi=48,
-                                         sigma_z=3.0, type="gaussian")},
+                                         fast_nz=256, fast_nphi=32,
+                                         sigma_z=15.0, type="gaussian")},
         "name": "antenna",
     }
     return actors
