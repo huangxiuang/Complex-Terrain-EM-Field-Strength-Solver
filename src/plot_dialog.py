@@ -242,8 +242,8 @@ class PlotDialog(QtWidgets.QDialog):
     def _contour(self, X, Y, data, cbar_label, title, cmap, cfg):
         fig, ax = plt.subplots(figsize=(10, 6))
         data = np.nan_to_num(data, nan=0.0, posinf=300, neginf=0)
-        # 画图裁剪 z≤250（以上为 taper 区无物理意义）
-        z_mask = Y[:, 0] <= 250
+        # 画图裁剪 z≤250
+        z_mask = Y[0, :] <= 250
         X, Y, data = X[:, z_mask], Y[:, z_mask], data[:, z_mask]
         # 固定色阶范围
         finite = data[np.isfinite(data) & (data < 300)]
