@@ -336,7 +336,7 @@ def build_wilderness():
         "params": {"color": "#b8956a", "smooth_shading": True, "opacity": 1.0,
                    "ambient": 0.1, "diffuse": 0.9, "specular": 0.1, "specular_power": 10},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
-                  "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 1e6}},
+                  "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
         "name": "terrain",
     }
 
@@ -364,7 +364,7 @@ def build_wilderness():
         except Exception: pass
 
     # ═══════════════════════════════════════════════════════════
-    #  4. 草原 — ITU-R P.527 medium dry ground
+    #  4. 草原 — ITU-R P.527 medium dry ground + P.833 low veg
     # ═══════════════════════════════════════════════════════════
     grass_poly = np.array([[-300,-250],[-80,120],[150,280],[320,80],[280,-200],[40,-320],[-250,-300]])
     grass_mask = np.zeros(X.shape, dtype=bool)
@@ -380,7 +380,7 @@ def build_wilderness():
             actors["grassland"] = {
                 "mesh": gs, "type": "mesh", "visible": True,
                 "params": {"color": "#7dcea0", "opacity": 0.55, "smooth_shading": True},
-                "extra": {"material": {"label": "草地", "eps_r": 12.0, "sigma": 0.005, "thickness_cm": 200},
+                "extra": {"material": {"label": "低矮植被", "eps_r": 1.2, "sigma": 0.00006, "thickness_cm": 200},
                           "is_material_layer": True},
                 "name": "grassland",
             }
@@ -403,7 +403,7 @@ def build_wilderness():
             actors["forest_canopy"] = {
                 "mesh": fs, "type": "mesh", "visible": True,
                 "params": {"color": "#1e8449", "opacity": 0.4, "smooth_shading": True},
-                "extra": {"material": {"label": "森林冠层", "eps_r": 1.1, "sigma": 0.002, "thickness_cm": 400},
+                "extra": {"material": {"label": "森林冠层", "eps_r": 1.5, "sigma": 0.0002, "thickness_cm": 1000},
                           "is_material_layer": True},
                 "name": "forest_canopy",
             }
@@ -599,7 +599,7 @@ def build_wilderness():
     # ═══════════════════════════════════════════════════════════
     #  11. 天线
     # ═══════════════════════════════════════════════════════════
-    ANT = (-400.0, 0.0, 60.0)
+    ANT = (-400.0, 0.0, 200.0)
     ant_ix = np.argmin(np.abs(xs-ANT[0])); ant_iy = np.argmin(np.abs(ys-ANT[1]))
     ant_tz = float(Z[ant_iy, ant_ix])
     sphere = pv.Sphere(radius=1.5, center=ANT)
@@ -612,8 +612,8 @@ def build_wilderness():
                    "ambient": 0.5, "diffuse": 0.9, "specular": 0.5, "specular_power": 50},
         "extra": {"position": ANT, "is_source": True,
                   "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0,
-                                         fast_nz=256, fast_nphi=32,
-                                         sigma_z=15.0, type="gaussian")},
+                                         fast_nz=512, fast_nphi=64,
+                                         sigma_z=80.0, type="gaussian")},
         "name": "antenna",
     }
     return actors

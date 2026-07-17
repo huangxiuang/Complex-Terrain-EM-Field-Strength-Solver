@@ -205,7 +205,7 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
 
 
 def _fast_sample_terrain(t, xp, yp):
-    """直接读 original_z 数组做双线性插值，比 sample_terrain 快且准。"""
+    """直接读 original_z 数组做双线性插值，越界点钳位到边缘。"""
     extra = t.get("extra") or {}
     Z = extra.get("original_z")
     X = extra.get("X")
@@ -214,14 +214,18 @@ def _fast_sample_terrain(t, xp, yp):
         return sample_terrain(t["mesh"], xp, yp)
     xs = X[0, :]; ys = Y[:, 0]
     nx, ny = len(xs), len(ys)
+    x_min, x_max = xs[0], xs[-1]
+    y_min, y_max = ys[0], ys[-1]
     r = np.empty(len(xp), dtype=np.float32)
     for i in range(len(xp)):
-        x, y = xp[i], yp[i]
+        x = max(x_min, min(xp[i], x_max))
+        y = max(y_min, min(yp[i], y_max))
         ix = max(0, min(np.searchsorted(xs, x) - 1, nx - 2))
         iy = max(0, min(np.searchsorted(ys, y) - 1, ny - 2))
         x1, x2 = xs[ix], xs[ix + 1]; y1, y2 = ys[iy], ys[iy + 1]
         dx = (x - x1) / (x2 - x1) if x2 != x1 else 0.5
         dy = (y - y1) / (y2 - y1) if y2 != y1 else 0.5
+        dx = max(0.0, min(dx, 1.0)); dy = max(0.0, min(dy, 1.0))
         r[i] = (Z[iy, ix] * (1 - dx) * (1 - dy) + Z[iy, ix + 1] * dx * (1 - dy) +
                 Z[iy + 1, ix] * (1 - dx) * dy + Z[iy + 1, ix + 1] * dx * dy)
     return r
