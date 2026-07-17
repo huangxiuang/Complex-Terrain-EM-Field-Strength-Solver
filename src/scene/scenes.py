@@ -333,9 +333,8 @@ def build_wilderness():
     grid["elevation"] = Z.flatten(order="F")
     actors["terrain"] = {
         "mesh": grid, "type": "mesh", "visible": True,
-        "params": {"scalars": "elevation", "cmap": "terrain",
-                   "show_scalar_bar": False, "smooth_shading": True, "opacity": 1.0,
-                   "ambient": 0.1, "diffuse": 0.9, "specular": 0.15, "specular_power": 20},
+        "params": {"color": "#b8956a", "smooth_shading": True, "opacity": 1.0,
+                   "ambient": 0.1, "diffuse": 0.9, "specular": 0.1, "specular_power": 10},
         "extra": {"original_z": Z.copy(), "X": X, "Y": Y, "is_dem": False,
                   "material": {"label": "干燥土壤", "eps_r": 15.0, "sigma": 0.01}},
         "name": "terrain",
