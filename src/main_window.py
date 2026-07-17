@@ -497,10 +497,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # 从天线配置中读取场景特定参数
         ant_cfg = (ant_obj.get("extra") or {}).get("antenna_config") or {}
         dr = ant_cfg.get("dr_factor", 1.0)
+        nz = ant_cfg.get("fast_nz", 2048)
+        nphi = ant_cfg.get("fast_nphi", 128)
         config = EMConfig(
-            frequency=freq,
-            antenna_pos=tx,
-            dr_factor=dr,
+            frequency=freq, antenna_pos=tx,
+            dr_factor=dr, n_z=nz, n_phi=nphi,
         )
         from src.core.context import Context
         from src.engine import prep, solver as pe_solver, post
@@ -705,9 +706,11 @@ class MainWindow(QtWidgets.QMainWindow):
             new_config = dlg.get_config()
             if "extra" not in ant:
                 ant["extra"] = {}
-            # 保留场景特定的 dr_factor
-            if (ant.get("extra") or {}).get("antenna_config", {}).get("dr_factor"):
-                new_config["dr_factor"] = ant["extra"]["antenna_config"]["dr_factor"]
+            # 保留场景特定的性能参数
+            for k in ("dr_factor", "fast_nz", "fast_nphi"):
+                old_val = (ant.get("extra") or {}).get("antenna_config", {}).get(k)
+                if old_val is not None:
+                    new_config[k] = old_val
             ant["extra"]["antenna_config"] = new_config
             # 同步位置到场景
             new_pos = new_config.get("position", cur_pos)

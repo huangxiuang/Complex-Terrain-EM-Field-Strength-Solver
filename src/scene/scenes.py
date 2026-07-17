@@ -607,7 +607,7 @@ def build_wilderness():
         "params": {"color": "#e63946", "smooth_shading": True, "opacity": 1.0,
                    "ambient": 0.5, "diffuse": 0.9, "specular": 0.5, "specular_power": 50},
         "extra": {"position": ANT, "is_source": True,
-                  "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=2.0)},
+                  "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0, fast_nz=768, fast_nphi=48)},
         "name": "antenna",
     }
     return actors
