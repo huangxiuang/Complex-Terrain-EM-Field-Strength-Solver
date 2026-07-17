@@ -253,9 +253,9 @@ def build_city_block():
 #  场景 4：荒原
 
 
-@register("wilderness", "荒原", "1000×1000m 起伏地形+正弦河道+岩石山体+森林+草地, 全建模无图层")
+@register("wilderness", "荒原", "1000×1000m 多噪声地形+河道+岩石山体+森林+草地, 底平面防悬空")
 def build_wilderness():
-    span = 500.0; res = 250
+    span = 500.0; res = 220
     xs = np.linspace(-span, span, res)
     ys = np.linspace(-span, span, res)
     X, Y = np.meshgrid(xs, ys)
@@ -263,23 +263,24 @@ def build_wilderness():
     np.random.seed(137)
 
     # ═══════════════════════════════════════════════════════════
-    #  1. 起伏地形 + 河道
+    #  1. 多噪声地形
     # ═══════════════════════════════════════════════════════════
-    # 轻微起伏（±3m）
-    Z_base = (
-        3.0 * np.sin(X*0.008) * np.cos(Y*0.01) +
-        2.0 * np.cos(X*0.015) * np.sin(Y*0.012) +
-        1.5 * np.sin(X*0.02 - Y*0.015)
-    )
+    Z1 = 90*np.exp(-((X-180)**2+(Y-120)**2)/90000) + 75*np.exp(-((X-320)**2+(Y-280)**2)/75000)
+    Z2 = 28*np.exp(-((X+40)**2+(Y+60)**2)/18000) + 22*np.exp(-((X-120)**2+(Y+180)**2)/22000)
+    plateau = np.where((X<-150)&(Y>100)&(X>-400)&(Y<350), 35.0, 0)
+    gully = -8*np.exp(-((Y+80)**2)/2500)*np.abs(np.sin(X*0.01+0.8))
+    tex = 2.5*np.sin(X*0.015)*np.cos(Y*0.018)+1.8*np.cos(X*0.035+1.2)*np.sin(Y*0.028)
+    tex += 1.2*np.sin(X*0.06-Y*0.05)+0.8*np.cos(X*0.09)*np.cos(Y*0.11)
+    Z_base = Z1 + Z2 + plateau + gully + tex + 5.0
+
+    # 挖河道
     Z = Z_base.copy()
-    # 正弦河道（参考经典场景）
-    river_width = 2.0; river_depth = 2.5
     for i in range(res):
         for j in range(res):
-            dist = abs(X[i,j] - 3.0 * np.sin(Y[i,j] * 0.3))
-            if dist < river_width:
-                t = dist / river_width
-                Z[i,j] = Z[i,j] * (0.05 + 0.15*t) - river_depth * (1-t)
+            dist = abs(X[i,j] - 3.0*np.sin(Y[i,j]*0.3))
+            if dist < 2.0:
+                t = dist/2.0; Z[i,j] = Z[i,j]*(0.05+0.15*t) - 2.5*(1-t)
+    Z = np.maximum(Z, 0.0)
 
     grid = pv.StructuredGrid(X, Y, Z)
     grid["elevation"] = Z.flatten(order="F")
@@ -292,15 +293,22 @@ def build_wilderness():
         "name": "terrain",
     }
 
+    # 底平面（消除悬空感）
+    z_min = Z.min()
+    bottom = pv.Plane(center=(0,0,z_min-2), direction=(0,0,1), i_size=1000, j_size=1000)
+    actors["ground_base"] = {
+        "mesh": bottom, "type": "mesh", "visible": True,
+        "params": {"color": "#8b6914", "smooth_shading": False, "opacity": 1.0},
+        "extra": None, "name": "ground_base",
+    }
+
     # 河道水面
     n_y, n_w = 150, 15
     river_y = np.linspace(-500, 500, n_y)
     river_w = np.linspace(-1.2, 1.2, n_w)
     Ry, Rw = np.meshgrid(river_y, river_w)
-    Rx_center = 3.0 * np.sin(Ry * 0.3)
-    Rx = Rx_center + Rw
-    river_z = -river_depth + 0.15
-    river_grid = pv.StructuredGrid(Rx, Ry, np.full_like(Rx, river_z))
+    Rx = 3.0*np.sin(Ry*0.3) + Rw
+    river_grid = pv.StructuredGrid(Rx, Ry, np.full_like(Rx, -2.3))
     actors["river"] = {
         "mesh": river_grid, "type": "mesh", "visible": True,
         "params": {"color": "#0d4f4f", "opacity": 0.7, "smooth_shading": True,
@@ -311,20 +319,16 @@ def build_wilderness():
     }
 
     # ═══════════════════════════════════════════════════════════
-    #  2. 岩石山体（障碍物）
+    #  2. 岩石山体
     # ═══════════════════════════════════════════════════════════
-    Z_mtn = (
-        130.0 * np.exp(-((X-200)**2+(Y-150)**2)/25000) +
-        90.0  * np.exp(-((X-300)**2+(Y-280)**2)/18000) +
-        70.0  * np.exp(-((X-350)**2+(Y-20)**2)/15000)
-    )
-    mtn_grid = pv.StructuredGrid(X, Y, Z_mtn)
-    mtn_grid["Elevation"] = Z_mtn.flatten(order="F")
+    Z_mtn = 130*np.exp(-((X-200)**2+(Y-150)**2)/25000) + 90*np.exp(-((X-300)**2+(Y-280)**2)/18000) + 70*np.exp(-((X-350)**2+(Y-20)**2)/15000)
+    mg = pv.StructuredGrid(X, Y, Z_mtn)
+    mg["Elevation"] = Z_mtn.flatten(order="F")
     try:
-        mtn_body = mtn_grid.extract_surface().threshold([20,200], scalars="Elevation", preference="point")
-        if mtn_body.n_points > 10:
+        mb = mg.extract_surface().threshold([20,200], scalars="Elevation", preference="point")
+        if mb.n_points > 10:
             actors["mountain"] = {
-                "mesh": mtn_body, "type": "mesh", "visible": True,
+                "mesh": mb, "type": "mesh", "visible": True,
                 "params": {"color": "#7a7a7a", "smooth_shading": True, "opacity": 0.95,
                            "ambient": 0.15, "diffuse": 0.7, "specular": 0.2, "specular_power": 10},
                 "extra": {"material": {"label": "岩石山体", "eps_r": 7.0, "sigma": 1e6},
@@ -334,18 +338,16 @@ def build_wilderness():
     except Exception: pass
 
     # ═══════════════════════════════════════════════════════════
-    #  3. 森林（独立树木, 200+棵, 南部区域）
+    #  3. 森林（独立树木, 南部）
     # ═══════════════════════════════════════════════════════════
     trees_list = []
     for _ in range(250):
         tx = np.random.uniform(50, 400); ty = np.random.uniform(-300, -50)
         tiy = np.argmin(np.abs(ys-ty)); tix = np.argmin(np.abs(xs-tx))
-        if Z_mtn[tiy, tix] < 15:
+        if Z_mtn[tiy, tix] < 15 and Z[tiy, tix] >= 0:
             h = np.random.uniform(3, 8)
-            trunk = pv.Cylinder(center=(tx,ty,h*0.25), direction=(0,0,1),
-                                radius=0.15, height=h*0.5, resolution=6)
-            canopy = pv.Cone(center=(tx,ty,h*0.6), direction=(0,0,1),
-                             radius=h*0.25, height=h*0.6, resolution=8)
+            trunk = pv.Cylinder(center=(tx,ty,Z[tiy,tix]+h*0.25), direction=(0,0,1), radius=0.15, height=h*0.5, resolution=6)
+            canopy = pv.Cone(center=(tx,ty,Z[tiy,tix]+h*0.6), direction=(0,0,1), radius=h*0.25, height=h*0.6, resolution=8)
             trees_list.append(trunk.merge(canopy))
     if trees_list:
         tm = trees_list[0]
@@ -355,25 +357,21 @@ def build_wilderness():
                             "extra": None, "name": "forest"}
 
     # ═══════════════════════════════════════════════════════════
-    #  4. 草地（大量点精灵）
+    #  4. 草地（点精灵, 排除森林/河道/山体）
     # ═══════════════════════════════════════════════════════════
-    n_grass = 5000
-    grass_x = np.random.uniform(-450, 450, n_grass)
-    grass_y = np.random.uniform(-450, 450, n_grass)
-    grass_z = np.zeros(n_grass)
+    n_grass = 4000
+    gx = np.random.uniform(-450, 450, n_grass)
+    gy = np.random.uniform(-450, 450, n_grass)
+    gz = np.zeros(n_grass); keep = np.ones(n_grass, dtype=bool)
     for k in range(n_grass):
-        gix = np.argmin(np.abs(xs-grass_x[k])); giy = np.argmin(np.abs(ys-grass_y[k]))
-        grass_z[k] = Z[giy, gix] + 0.05
-        # 排除森林区、山体区、河道
-        in_forest = (100 < grass_x[k] < 400) and (-300 < grass_y[k] < -50)
-        in_river = abs(grass_x[k] - 3.0*np.sin(grass_y[k]*0.3)) < 2.5
-        if Z_mtn[giy, gix] > 15 or in_forest or in_river:
-            grass_z[k] = -999
-    valid_grass = grass_z > -900
-    if valid_grass.sum() > 0:
-        gx = grass_x[valid_grass]; gy = grass_y[valid_grass]; gz = grass_z[valid_grass]
+        gix = np.argmin(np.abs(xs-gx[k])); giy = np.argmin(np.abs(ys-gy[k]))
+        gz[k] = Z[giy, gix] + 0.05
+        if Z_mtn[giy, gix] > 15: keep[k] = False
+        if 50<gx[k]<400 and -300<gy[k]<-50: keep[k] = False  # 森林区
+        if abs(gx[k]-3.0*np.sin(gy[k]*0.3)) < 2.5: keep[k] = False  # 河道
+    if keep.sum() > 0:
         actors["grass"] = {
-            "mesh": pv.PolyData(np.column_stack((gx, gy, gz))),
+            "mesh": pv.PolyData(np.column_stack((gx[keep], gy[keep], gz[keep]))),
             "type": "points", "visible": True,
             "params": {"color": "#4a8c3f", "point_size": 4, "opacity": 0.7},
             "extra": None, "name": "grass",
@@ -394,8 +392,6 @@ def build_wilderness():
                   "is_material_layer": True},
         "name": "lake",
     }
-
-    # 岩石（山体上可见岩石）
     rocks_list = []
     for _ in range(40):
         rx = np.random.uniform(100, 400); ry = np.random.uniform(50, 350)
@@ -403,8 +399,7 @@ def build_wilderness():
         rz = Z_mtn[riy, rix]
         if rz > 30:
             s = np.random.uniform(3, 12)
-            rock = pv.Icosahedron(radius=s)
-            rock.points += np.array([rx, ry, rz - s*0.3])
+            rock = pv.Icosahedron(radius=s); rock.points += np.array([rx, ry, rz - s*0.3])
             rocks_list.append(rock)
     if rocks_list:
         rm = rocks_list[0]
@@ -412,22 +407,19 @@ def build_wilderness():
         actors["rocks"] = {"mesh": rm, "type": "mesh", "visible": True,
                            "params": {"color": "#7a7a7a", "smooth_shading": True, "opacity": 0.9},
                            "extra": None, "name": "rocks"}
-
-    # 灌木点
     n_bush = 400
-    bush_x = np.random.uniform(-450, 450, n_bush)
-    bush_y = np.random.uniform(-450, 450, n_bush)
-    bush_z = np.array([Z[np.argmin(np.abs(ys-bush_y[k])), np.argmin(np.abs(xs-bush_x[k]))]+0.1
-                       for k in range(n_bush)])
+    bx = np.random.uniform(-450, 450, n_bush)
+    by = np.random.uniform(-450, 450, n_bush)
+    bz = np.array([Z[np.argmin(np.abs(ys-by[k])), np.argmin(np.abs(xs-bx[k]))]+0.1 for k in range(n_bush)])
     actors["bushes"] = {
-        "mesh": pv.PolyData(np.column_stack((bush_x, bush_y, bush_z))),
+        "mesh": pv.PolyData(np.column_stack((bx, by, bz))),
         "type": "points", "visible": True,
         "params": {"color": "#6b8e23", "point_size": 5, "opacity": 0.6},
         "extra": None, "name": "bushes",
     }
 
     # ═══════════════════════════════════════════════════════════
-    #  6. 天线 — 100m 塔
+    #  6. 天线
     # ═══════════════════════════════════════════════════════════
     ANT = (-400.0, 0.0, 100.0)
     sphere = pv.Sphere(radius=2.0, center=ANT)
@@ -439,8 +431,10 @@ def build_wilderness():
         "extra": {"position": ANT, "is_source": True,
                   "antenna_config": dict(DEFAULT_ANTENNA_CONFIG, dr_factor=8.0,
                                          fast_nz=512, fast_nphi=64,
-                                         sigma_z=40.0, type="gaussian",
-                                         tilt_angle=15.0)},
+                                         sigma_z=40.0, type="gaussian", tilt_angle=15.0)},
+        "name": "antenna",
+    }
+    return actors
         "name": "antenna",
     }
     return actors
