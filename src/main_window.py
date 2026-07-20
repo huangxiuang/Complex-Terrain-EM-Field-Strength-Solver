@@ -26,6 +26,7 @@ from src.scene.scenes import SCENE_REGISTRY, build_metal_barrier
 from src.scene.scene_dialog import SceneSelectDialog, ScenePropsDialog
 from src.plot_dialog import PlotDialog
 from src.template_dialog import TemplateDialog
+from src import io_utils
 
 import matplotlib.path as mpath
 
@@ -227,6 +228,13 @@ class MainWindow(QtWidgets.QMainWindow):
         menu_layer = mb.addMenu("图层 (&L)")
         menu_layer.addAction("增加图层…", self._open_layer_dialog)
         menu_layer.addAction("管理裁剪图层…", self._open_clip_manager)
+
+        # ── Import/Export menu ──
+        menu_io = mb.addMenu("导入/导出 (&I)")
+        menu_io.addAction("导入 DEM / GeoTIFF…", self._on_import_dem)
+        menu_io.addAction("导入 ASC 高程栅格…", self._on_import_asc)
+        menu_io.addSeparator()
+        menu_io.addAction("导出地形为 ASC…", self._on_export_asc)
 
         # ── Parameters menu ──
         menu_params = mb.addMenu("参数 (&P)")
@@ -815,6 +823,82 @@ class MainWindow(QtWidgets.QMainWindow):
         if t is None or t.get("extra") is None:
             return False
         return t["extra"].get("is_dem", False)
+
+    # ── 导入/导出 ──
+
+    def _on_import_dem(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "导入 DEM 高程模型",
+            "", "DEM 文件 (*.tif *.tiff *.img *.dem);;所有文件 (*)")
+        if not path:
+            return
+        try:
+            # 降采样因子自动估算：目标网格 150×150
+            import rasterio
+            with rasterio.open(path) as src:
+                w, h = src.width, src.height
+            ds = max(1, max(w, h) // 150)
+            dem_info = io_utils.read_dem(path, downsample=ds)
+        except ImportError:
+            QtWidgets.QMessageBox.critical(
+                self, "缺少依赖",
+                "导入 DEM 需要 rasterio 库。\n请在终端执行: pip install rasterio")
+            return
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "导入失败", str(e))
+            return
+        self._replace_terrain(io_utils.dem_to_terrain_obj(dem_info, center=True),
+                              f"已导入 DEM: {os.path.basename(path)}")
+
+    def _on_import_asc(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "导入 ASC 高程栅格",
+            "", "ASC 文件 (*.asc *.txt);;所有文件 (*)")
+        if not path:
+            return
+        try:
+            asc_info = io_utils.read_asc(path)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "导入失败", str(e))
+            return
+        self._replace_terrain(io_utils.dem_to_terrain_obj(asc_info, center=True),
+                              f"已导入 ASC: {os.path.basename(path)}")
+
+    def _on_export_asc(self):
+        terrain = self.scene_objects.get("terrain")
+        if terrain is None:
+            QtWidgets.QMessageBox.warning(self, "提示", "场景中没有地形数据")
+            return
+        info = io_utils.terrain_to_dem_info(terrain)
+        if info is None:
+            QtWidgets.QMessageBox.warning(self, "导出失败", "无法从当前地形提取高程数据")
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "导出地形为 ASC", "terrain_export.asc", "ASC (*.asc)")
+        if not path:
+            return
+        try:
+            io_utils.write_asc(path, info["data"],
+                               xll=info["xll"], yll=info["yll"],
+                               cellsize=info["cellsize"])
+            QtWidgets.QMessageBox.information(
+                self, "导出完成",
+                f"已导出 {info['ncols']}×{info['nrows']} 高程栅格\n→ {path}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "导出失败", str(e))
+
+    def _replace_terrain(self, new_terrain: dict, status_msg: str):
+        old_actor = self.plotter_actors.pop("terrain", None)
+        if old_actor is not None:
+            self.plotter.remove_actor(old_actor)
+
+        self.scene_objects["terrain"] = new_terrain
+        self._add_actor("terrain", new_terrain)
+
+        self._invalidate_field(status_msg)
+        self._reset_camera()
+        self.plotter.render()
+        self.statusBar().showMessage(status_msg)
 
     def _open_layer_dialog(self):
         layer_names = {
