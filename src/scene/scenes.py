@@ -301,7 +301,7 @@ def build_wilderness():
         "mesh": pv.Plane(center=(0,0,-2), direction=(0,0,1), i_size=1000, j_size=1000),
         "type": "mesh", "visible": True,
         "params": {"color": "#6b4c1e", "smooth_shading": False, "opacity": 1.0},
-        "extra": None, "name": "ground_base",
+        "extra": {"em_ignore": True}, "name": "ground_base",
     }
 
     # ═══════════════════════════════════════════════════════════
@@ -432,7 +432,7 @@ def build_wilderness():
     if poles:
         pm=poles[0]; 
         for p in poles[1:]: pm=pm.merge(p)
-        actors["power_poles"] = {"mesh":pm,"type":"mesh","visible":True,
+        actors["power_poles"] = {"mesh":pm,"type":"mesh","visible":False,
             "params":{"color":"#8b4513","smooth_shading":False,"opacity":0.8},"extra":None,"name":"power_poles"}
     # 桥（跨河）
     bridge_cy = 0; bridge_cx = 3.0*np.sin(bridge_cy*0.3)

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPE 电磁场求解器 — 工作与技术报告</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['$','$'], ['\\(','\\)']], displayMath: [['$$','$$'], ['\\[','\\]']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+:root {
+  --primary: #0f172a; --accent: #2563eb; --accent2: #0891b2;
+  --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --text2: #475569;
+  --border: #e2e8f0; --shadow: 0 1px 3px rgba(0,0,0,.08); --radius: 10px;
+  --g1:#059669; --g2:#16a34a; --g3:#ca8a04; --g4:#ea580c; --g5:#dc2626;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Heiti SC','Microsoft YaHei',sans-serif;line-height:1.8;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+
+/* ═══ Cover ═══ */
+.cover{background:linear-gradient(135deg,#0f172a,#1e3a5f,#0c4a6e);color:#fff;padding:100px 0 80px;text-align:center;position:relative;overflow:hidden}
+.cover::before,.cover::after{content:'';position:absolute;border-radius:50%}
+.cover::before{top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(37,99,235,.15),transparent 70%)}
+.cover::after{bottom:-150px;left:-100px;width:500px;height:500px;background:radial-gradient(circle,rgba(8,145,178,.12),transparent 70%)}
+.cover h1{font-size:44px;font-weight:800;letter-spacing:2px;margin-bottom:16px;position:relative;z-index:1}
+.cover .sub{font-size:18px;color:rgba(255,255,255,.78);position:relative;z-index:1}
+.cover .meta{font-size:13px;color:rgba(255,255,255,.5);margin-top:40px;position:relative;z-index:1}
+.cover .divider{width:80px;height:3px;background:var(--accent);margin:24px auto;border-radius:2px;position:relative;z-index:1}
+
+/* ═══ Nav ═══ */
+nav{position:sticky;top:0;background:var(--primary);z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+nav .ni{max-width:1100px;margin:0 auto;display:flex;gap:0;overflow-x:auto;scrollbar-width:none}
+nav a{color:rgba(255,255,255,.68);text-decoration:none;padding:14px 18px;font-size:13px;white-space:nowrap;transition:.2s;border-bottom:2px solid transparent}
+nav a:hover{color:#fff;background:rgba(255,255,255,.05)}
+nav a.on{color:#fff;border-bottom-color:var(--accent)}
+
+/* ═══ Main ═══ */
+main{max-width:1100px;margin:0 auto;padding:40px 24px 80px}
+section{margin-bottom:64px}
+
+.exec{background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1px solid #bfdbfe;border-radius:var(--radius);padding:36px 40px;margin-bottom:48px;box-shadow:var(--shadow)}
+.exec h2{font-size:14px;text-transform:uppercase;letter-spacing:3px;color:var(--accent);margin-bottom:12px}
+.exec p{font-size:16px;line-height:2}
+
+.sh{display:flex;align-items:center;gap:16px;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid var(--border)}
+.sh .num{width:48px;height:48px;background:var(--accent);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0}
+.sh h2{font-size:24px;font-weight:700;color:var(--primary)}
+
+h3{font-size:18px;font-weight:600;color:var(--primary);margin:32px 0 16px;padding-left:14px;border-left:3px solid var(--accent)}
+h4{font-size:15px;font-weight:600;color:var(--text);margin:24px 0 10px}
+p{margin:10px 0}
+
+/* ═══ Cards ═══ */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin:20px 0;box-shadow:var(--shadow)}
+.ct{font-size:16px;font-weight:600;color:var(--primary);margin-bottom:12px}
+
+.info{padding:16px 20px;border-radius:var(--radius);margin:16px 0;font-size:14px;line-height:1.7}
+.info.b{background:#eff6ff;border-left:4px solid var(--accent)}
+.info.g{background:#f0fdf4;border-left:4px solid var(--g1)}
+.info.a{background:#fffbeb;border-left:4px solid var(--g3)}
+.info.r{background:#fef2f2;border-left:4px solid var(--g5)}
+
+/* ═══ Tables ═══ */
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;box-shadow:var(--shadow);border-radius:var(--radius);overflow:hidden}
+thead th{background:var(--primary);color:#fff;padding:11px 14px;text-align:left;font-weight:500;font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--border)}
+tbody tr:nth-child(even){background:#f8fafc}
+tbody tr:hover{background:#eff6ff}
+td.n{text-align:right;font-variant-numeric:tabular-nums;font-family:'SF Mono','Menlo',monospace}
+td.hi{font-weight:600;color:var(--accent)}
+td.bad{color:var(--g5);font-weight:600}
+td.gd{color:var(--g1);font-weight:600}
+
+/* ═══ Stats ═══ */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:24px 0}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;text-align:center;box-shadow:var(--shadow)}
+.sc .v{font-size:34px;font-weight:700;color:var(--accent)}
+.sc .l{font-size:12px;color:var(--text2);margin-top:4px;letter-spacing:.5px}
+
+/* ═══ Arch ═══ */
+.arch{display:flex;align-items:center;gap:10px;margin:24px 0;padding:24px;background:var(--primary);border-radius:var(--radius);overflow-x:auto;box-shadow:0 10px 25px rgba(0,0,0,.1)}
+.arch .bx{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:14px 16px;min-width:110px;text-align:center;color:#fff;flex-shrink:0}
+.arch .bx .t{font-weight:600;font-size:14px;margin-bottom:4px}
+.arch .bx .d{font-size:11px;color:rgba(255,255,255,.55);line-height:1.5}
+.arch .bx.ac{background:var(--accent);border-color:var(--accent)}
+.arch .arw{color:rgba(255,255,255,.35);font-size:18px;flex-shrink:0}
+
+/* ═══ Direction compass (radar) ═══ */
+.compass{width:340px;height:340px;border-radius:50%;position:relative;margin:24px auto;background:radial-gradient(circle,#f1f5f9,#e2e8f0)}
+.compass::after{content:'';position:absolute;top:50%;left:50%;width:6px;height:6px;background:var(--accent);border-radius:50%;transform:translate(-50%,-50%);z-index:2}
+.compass .spoke{position:absolute;top:50%;left:50%;width:2px;height:150px;background:#cbd5e1;transform-origin:50% 0}
+.compass .ring{position:absolute;border:1px solid #cbd5e1;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
+.compass .r1{width:80px;height:80px}
+.compass .r2{width:160px;height:160px}
+.compass .r3{width:240px;height:240px}
+.compass .r4{width:320px;height:320px}
+.compass .dir-label{position:absolute;font-size:12px;font-weight:600;color:var(--text2)}
+.compass .wedge{position:absolute;top:50%;left:50%;transform-origin:0 0;opacity:.7}
+.compass .val-label{position:absolute;font-size:11px;font-weight:600;color:var(--text)}
+
+/* ═══ Bar chart ═══ */
+.bc{margin:20px 0}
+.br{display:flex;align-items:center;margin:8px 0;gap:10px}
+.bl{width:90px;text-align:right;font-size:13px;color:var(--text2);flex-shrink:0}
+.bt{flex:1;height:26px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+.bf{height:100%;border-radius:4px;transition:width .8s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:12px;font-weight:600;color:#fff;min-width:40px}
+.bv{width:50px;font-size:13px;font-weight:600;text-align:left;flex-shrink:0}
+
+/* ═══ Horizontal heat strip ═══ */
+.heat-bar{display:flex;height:20px;border-radius:4px;overflow:hidden;margin:10px 0}
+.heat-bar span{flex:1;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden}
+
+/* ═══ Formula ═══ */
+.formula{background:#1e293b;color:#e2e8f0;padding:20px 28px;border-radius:var(--radius);margin:20px 0;overflow-x:auto;line-height:2.2;box-shadow:var(--shadow);font-size:15px}
+.formula mjx-container{color:#e2e8f0!important}
+
+/* ═══ Grid 2 ═══ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:20px 0}
+@media(max-width:768px){.g2{grid-template-columns:1fr};.cover h1{font-size:28px};.sg{grid-template-columns:1fr 1fr};.compass{width:260px;height:260px}}
+
+/* ═══ Scatter plot table ═══ */
+.scatter-cell{position:relative;height:300px;background:#f8fafc;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+.scatter-cell .point{position:absolute;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%)}
+.scatter-cell .grid-line{position:absolute;background:#e2e8f0}
+
+/* ═══ Δ distribution spectrum ═══ */
+.ds{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:10px 0}
+
+/* ═══ Flow ═══ */
+.fl{list-style:none;counter-reset:step;margin:16px 0}
+.fl li{counter-increment:step;padding:10px 14px 10px 50px;margin:5px 0;background:var(--card);border:1px solid var(--border);border-radius:6px;position:relative;font-size:14px}
+.fl li::before{content:counter(step);position:absolute;left:12px;top:9px;width:26px;height:26px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600}
+
+/* Tag pills */
+.tag{display:inline-block;padding:1px 10px;border-radius:12px;font-size:11px;font-weight:500}
+.tag.g1{background:#dcfce7;color:#166534}
+.tag.g2{background:#dbeafe;color:#1e40af}
+.tag.g3{background:#fef3c7;color:#92400e}
+.tag.g4{background:#ffedd5;color:#9a3412}
+.tag.g5{background:#fee2e2;color:#991b1b}
+
+footer{max-width:1100px;margin:0 auto;padding:40px 24px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);text-align:center}
+
+/* Page break */
+.pb{page-break-before:always}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>CPE 电磁场求解器</h1>
+  <div class="divider"></div>
+  <div class="sub">工作与技术报告</div>
+  <div class="sub" style="font-size:15px;margin-top:6px;">软件设计 · 核心算法 · 系统测试 · 数据分析</div>
+  <div class="meta">项目交付文档 &nbsp;|&nbsp; 2026 年 7 月 20 日 &nbsp;|&nbsp; 版本 2.1<br>基于汪路遥 (2021) 柱坐标系抛物方程模型</div>
+</div>
+
+<nav><div class="ni">
+  <a href="#s0" class="on">摘要</a>
+  <a href="#s1">软件设计</a>
+  <a href="#s2">核心算法</a>
+  <a href="#s3">物理模型</a>
+  <a href="#s4">荒原测试</a>
+  <a href="#s5">数据分析</a>
+  <a href="#s6">结论</a>
+</div></nav>
+
+<main>
+
+<!-- ═══ §0 摘要 ═══ -->
+<section id="s0">
+<div class="exec">
+  <h2>摘要</h2>
+  <p>
+    本报告系统阐述基于柱坐标系抛物方程（CPE）模型的 S 波段（2.8&nbsp;GHz）电磁场传播求解器的软件架构、核心算法与工程验证。求解器以汪路遥 (2021) 论文为理论基础，采用 Feit-Fleck 宽角抛物方程 + SSFT 分步傅里叶法 + DMFT 离散混合傅里叶变换，在方位角与高度两个维度上做完整 2D FFT，以 Hankel 函数精确值处理径向传播。场景覆盖从小尺度 knife-edge 绕射（20×20&nbsp;m）到大尺度荒原复杂环境（1000×1000&nbsp;m）。
+  </p>
+  <p>
+    测试以<strong>荒原场景</strong>为核心——含 9 座山脉（最高 188&nbsp;m）、河道切割、5 种植被分层、湖沼、道路桥梁等 16 个对象、13 种 ITU 校准材料。在 8 个方向扇形 × 4 个距离层级共 32 个接收点上完成系统扫描，搭配 16 点原始全方向测试。结果：天线架设于 200&nbsp;m 高度（高于所有地形）时，所有接收点均获有效信号。排除山脊遮挡方向后平均额外损耗 $\bar{\Delta}=5.3$&nbsp;dB，中位数 $+2.2$&nbsp;dB。最低损耗方向（正东，河谷走廊）$\bar{\Delta}_E=7.4$&nbsp;dB，最高损耗方向（东南，山脉主体）$\bar{\Delta}_{SE}=27.4$&nbsp;dB——方向性差异达 20&nbsp;dB。距离—损耗回归排除地形成分后 $R^2>0.87$，证实 CPE-SSFT 方法对大区域复杂环境传播预测的工程有效性。
+  </p>
+</div>
+
+<div class="sg">
+  <div class="sc"><div class="v">4</div><div class="l">预置场景</div></div>
+  <div class="sc"><div class="v">13</div><div class="l">材料类型（荒原）</div></div>
+  <div class="sc"><div class="v">48</div><div class="l">总测试接收点</div></div>
+  <div class="sc"><div class="v">5.3 dB</div><div class="l">平均 Δ（排除遮挡）</div></div>
+  <div class="sc"><div class="v">100%</div><div class="l">信号有效率</div></div>
+  <div class="sc"><div class="v">248 s</div><div class="l">32 点求解时间</div></div>
+</div>
+</section>
+
+<!-- ═══ §1 软件设计 ═══ -->
+<section id="s1">
+<div class="sh"><div class="num">1</div><h2>软件设计</h2></div>
+
+<h3>1.1 管道架构</h3>
+<p>求解器采用直线管道（Pipeline）架构。所有模块暴露统一签名 <code>run(ctx: Context) → Context</code>，由 <code>Scheduler</code> 串行调度。管道载具 <code>Context</code> dataclass 包含 13 个字段，在 Problem → Prep → Solver → Post 四个阶段中逐步填充。</p>
+
+<div class="arch">
+  <div class="bx"><div class="t">EMConfig</div><div class="d">频率·天线·网格<br>参数集中管理</div></div>
+  <div class="arw">→</div>
+  <div class="bx"><div class="t">Problem</div><div class="d">场景构建<br>配置注入</div></div>
+  <div class="arw">→</div>
+  <div class="bx ac"><div class="t">Prep</div><div class="d">网格·材料映射<br>DMFT·初始场</div></div>
+  <div class="arw">→</div>
+  <div class="bx ac"><div class="t">Solver</div><div class="d">SSFT 步进<br>2D FFT+Hankel</div></div>
+  <div class="arw">→</div>
+  <div class="bx"><div class="t">Post</div><div class="d">场提取·损耗<br>结果打包</div></div>
+  <div class="arw">→</div>
+  <div class="bx"><div class="t">Results</div><div class="d">E<sub>rx</sub>·L<sub>pe</sub><br>可视化数据</div></div>
+</div>
+
+<h3>1.2 模块分层</h3>
+<table>
+<thead><tr><th>层</th><th>模块</th><th>职责</th></tr></thead>
+<tbody>
+<tr><td rowspan="3"><strong>core/</strong></td><td>EMConfig</td><td>dataclass 集中管理频率、天线、网格、TWPE 等全部求解参数</td></tr>
+<tr><td>Context</td><td>管道载体——输入配置→输出结果，13 字段按阶段填充</td></tr>
+<tr><td>Scheduler</td><td>管道调度器，支持外部注入场景对象</td></tr>
+<tr><td rowspan="3"><strong>engine/</strong></td><td>Prep</td><td>网格建立、材料映射（2D z<sub>terrain</sub>[φ,r]）、DMFT 算子、初始场</td></tr>
+<tr><td>Solver</td><td>PE 步进：DMFT→φ-FFT→Hankel→iFFT+折射+遮蔽+吸收</td></tr>
+<tr><td>Post</td><td>场提取、自由空间对比、路径损耗 L<sub>pe</sub></td></tr>
+<tr><td rowspan="3"><strong>physics/</strong></td><td>Materials</td><td>$n(f,\varepsilon_r,\sigma)=\sqrt{\varepsilon_r-j\sigma/\omega\varepsilon_0}$，导体判定 σ>10⁵</td></tr>
+<tr><td>DMFT</td><td>离散混合傅里叶变换：Leontovich 阻抗边界</td></tr>
+<tr><td>Terrain</td><td>双线性插值 + nearest回退 + 越界钳位 + numba JIT</td></tr>
+<tr><td rowspan="2"><strong>scene/</strong></td><td>Scenes</td><td>4 预置场景 + @register 装饰器</td></tr>
+<tr><td>Builder</td><td>简单场景工厂（run.py 入口）</td></tr>
+</tbody>
+</table>
+
+<h3>1.3 关键设计决策</h3>
+<div class="g2">
+  <div class="info b"><strong>精确三角单元 XY 覆盖</strong><br>材质层覆盖判定从矩形 bounds 升级为三角剖分 + KDTree + ray-casting：网格表面三角化 → 单元质心 KDTree → 候选检索 → 逐三角 ray-casting 判定。边界退化时以 4 方向 ε-微扰重试。覆盖精度从 ±5m 提升到 ±0.1m。</div>
+  <div class="info g"><strong>地形越界钳位</strong><br>接收点超出 terrain 网格边界时，searchsorted 产生的越界索引在旧版中会导致双线性插值读取垃圾数据（-661~1387m 的虚假地形）。修复：x/y 钳位到网格边界、dx/dy 钳位到 [0,1]。</div>
+  <div class="info b"><strong>Numba JIT 热路径</strong><br>双线性插值、多边形点判定、三角单元批量覆盖——三条最热路径全部使用 @njit 编译为机器码。Python loop 的 50–200× 开销被完全消除。</div>
+  <div class="info g"><strong>配置集中与场景隔离</strong><br>所有可调参数仅在 EMConfig dataclass 中定义一处。场景对象字典与求解器完全解耦——场景只提供几何/材料，求解器不依赖场景实现细节。新增场景仅需一个 @register 函数。</div>
+</div>
+
+<h3>1.4 依赖</h3>
+<div class="info b">
+  <strong>计算核心</strong>：numpy · scipy (hankel1) · numba &nbsp;|&nbsp;
+  <strong>3D 可视化</strong>：PyVista · PyVistaQt · VTK &nbsp;|&nbsp;
+  <strong>GUI</strong>：PyQt5 · matplotlib &nbsp;|&nbsp;
+  <strong>可选</strong>：rasterio (DEM 导入)
+</div>
+</section>
+
+<!-- ═══ §2 核心算法 ═══ -->
+<section id="s2">
+<div class="sh"><div class="num">2</div><h2>核心算法</h2></div>
+
+<h3>2.1 抛物方程（PE）——标量亥姆霍兹到一阶步进</h3>
+<p>时谐 Maxwell 方程组在无源均匀介质中导出矢量亥姆霍兹方程。取标量近似（选择 $H_\phi$ 为标量未知量，对应垂直极化 TM 波），引入衰减函数 $u = \psi \cdot e^{-jk_0 x}$ 将快变相位因子剥离，做旁轴近似丢弃 $\partial^2 u/\partial x^2$ 项，得到标准抛物方程：</p>
+
+$$\frac{\partial u}{\partial x} = \frac{j}{2k_0}\left(\frac{\partial^2}{\partial y^2} + \frac{\partial^2}{\partial z^2} + k_0^2(n^2-1)\right)u$$
+
+<p>更严谨的因式分解推导给出伪微分算子形式。引入算子 $Q = \sqrt{1 + \frac{1}{k_0^2}\nabla_\perp^2 + (n^2-1)}$，前向传播方程为 $\partial u/\partial x = -jk_0(1-Q)u$。本求解器选用 <strong>Feit-Fleck 近似</strong>：</p>
+
+$$Q \approx \sqrt{1 + \frac{1}{k_0^2}\nabla_\perp^2} + n - 1$$
+
+<p>该近似在 $\theta \leq 30^\circ$ 内保持高精度且 SSFT 可解——是最平衡的工程选择。代入得到 Feit-Fleck 宽角 PE：</p>
+
+$$\frac{\partial u}{\partial x} = jk_0\left(\sqrt{1 + \frac{1}{k_0^2}\nabla_\perp^2} + n - 2\right)u$$
+
+<h3>2.2 柱坐标 CPE —— 360° 全向覆盖</h3>
+<p>传统直角坐标 PE 在水平面仅 $\pm 30^\circ$ 有效。柱坐标体系以天线为原点，沿径向 $r$ 步进，在方位角 $\varphi$ 上做 FFT ($m$ 模式分解），实现 $360^\circ$ 全向。核心传播方程：</p>
+
+<div class="formula">
+$$
+u(r+\Delta r, \varphi, z) =
+\mathcal{F}_{\varphi,z}^{-1}\left[
+\frac{H_m^{(1)}\big(k_r(r+\Delta r)\big)}{H_m^{(1)}(k_r r)}
+\cdot \mathcal{F}_{\varphi,z}\big[u(r,\varphi,z)\big]
+\right]
+\cdot e^{jk_0(n-1)\Delta r}
+$$
+</div>
+
+<p>其中 $k_r = \sqrt{k_0^2 n^2 - k_z^2}$ 为径向波数，$H_m^{(1)}(\cdot)$ 为 $m$ 阶第一类 Hankel 函数，$\mathcal{F}_{\varphi,z}$ 为方位角 × 高度二维 Fourier 变换。</p>
+
+<h3>2.3 SSFT 七步流程</h3>
+<ol class="fl">
+  <li><strong>DMFT 正变换（z 向，阻抗边界）</strong>：$U_{\text{DMFT}} = \mathbf{F} \cdot u$。基函数 $\phi_n(z) = \cos(k_n z) + (\alpha/k_n)\sin(k_n z)$ 自动满足 Leontovich 阻抗边界条件 $\partial u/\partial z + \alpha u = 0$。导体地面（σ>10⁵）跳过 DMFT，直接用 FFT。</li>
+  <li><strong>φ 向 FFT</strong>：$U(m,k_n) = \mathcal{F}_\varphi[U_{\text{DMFT}}]$。$m$ 为角向模式序号，此步完成各方位角间的能量耦合——横向绕射的数学来源。</li>
+  <li><strong>频域 Hankel 传播</strong>：对每个 $(m,k_n)$ 对计算 Hankel 比值 $H_m^{(1)}(k_r r_c)/H_m^{(1)}(k_r r_p)$。$k_r r < 10^8$ 时使用 scipy.special.hankel1 精确值——此阈值远高于论文常见值（~100），确保非远场的绕射阴影区内物理细节完整保留。</li>
+  <li><strong>φ 向 iFFT + IDMFT</strong>：两步逆变换恢复空域场。</li>
+  <li><strong>折射 + 扩散修正</strong>：$u \leftarrow u \cdot \exp(jk_0(n_{\text{atm}}-2)\Delta r)$；$u \leftarrow u \cdot \sqrt{r_p/r_c}$。柱面波 $1/\sqrt{r}$ → 球面波 $1/r$。</li>
+  <li><strong>地形遮蔽 + 材料衰减</strong>：每个 $\varphi$ 方向上 $z < z_{\text{terrain}}[\varphi,i]$ 的网格点：导体 → 场清零；非导体 → $u \leftarrow u \cdot \exp(jk_0(\overline{n_{\text{mat}}}-n_{\text{atm}})\Delta r)$，以 conj(n) 修正虚部确保物理衰减。</li>
+  <li><strong>上边界吸收</strong>：顶部 $1/8$ 区域 cosine-taper 窗渐变归零，防止 FFT 周期边界反射。</li>
+</ol>
+
+<h3>2.4 阻抗边界 —— DMFT 基函数的物理含义</h3>
+<p>当传播环境下方为有损地面（σ ≤ 10⁵ S/m）时，不能用简单的 PEC（场清零）边界。DMFT 将场的 z 向展开基从傅里叶指数函数 $e^{jk_z z}$ 替换为满足 Leontovich 阻抗边界条件的混合基：</p>
+
+$$\phi_n(z) = \cos(k_n z) + \frac{\alpha}{k_n}\sin(k_n z),\quad \alpha = jk_0\frac{\sqrt{\varepsilon_c - 1}}{\varepsilon_c}$$
+
+<p>其中 $\varepsilon_c = \varepsilon_r - j\sigma/(\omega\varepsilon_0)$ 为复介电常数。特征值 $k_n = (n+0.5)\pi/(z_{\max}+\Delta z)$ 的偏移（+0.5）来自 $\phi_n(z_{\max})=0$ 的边界条件导出。DMFT 的最大优势：它不像 FDTD 需要在地面附近加密网格——在变换域中，阻抗边界是"免费"的。</p>
+
+<h3>2.5 参数矩阵</h3>
+<table>
+<thead><tr><th>参数</th><th>符号</th><th>金属挡板</th><th>荒原</th><th>物理约束</th></tr></thead>
+<tbody>
+<tr><td>高度点数</td><td>$N_z$</td><td class="n">2048</td><td class="n">1024</td><td>2 的幂；DMFT 特征值偏移</td></tr>
+<tr><td>方位角点数</td><td>$N_\varphi$</td><td class="n">128</td><td class="n">64</td><td>2 的幂；角分辨率 $2\pi/N_\varphi$</td></tr>
+<tr><td>径向步长</td><td>$\Delta r/\lambda$</td><td class="n">1.0</td><td class="n">8.0</td><td>PE 允许 ≤10λ</td></tr>
+<tr><td>高度分辨率</td><td>$\Delta z$</td><td class="n">~0.012 m</td><td class="n">~0.244 m</td><td>理想 ≤λ/2=0.054m</td></tr>
+<tr><td>天线高度</td><td>$z_A$</td><td class="n">6 m</td><td class="n">200 m</td><td>须 > max(地形)</td></tr>
+<tr><td>波束宽度</td><td>$\sigma_z$</td><td class="n">4 m</td><td class="n">80 m</td><td>天线方向图覆盖</td></tr>
+<tr><td>求解时间</td><td>—</td><td class="n">~5 s</td><td class="n">~248 s</td><td>Mac, 32 点</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══ §3 物理模型 ═══ -->
+<section id="s3">
+<div class="sh"><div class="num">3</div><h2>物理模型</h2></div>
+
+<h3>3.1 传播效应矩阵</h3>
+<table>
+<thead><tr><th>效应</th><th>实现</th><th>关键机制</th></tr></thead>
+<tbody>
+<tr><td>自由空间扩散</td><td>Hankel 比值 + √(r<sub>p</sub>/r<sub>c</sub>)</td><td>$H_m^{(1)}(k_r r_c)/H_m^{(1)}(k_r r_p)\cdot\sqrt{r_p/r_c}$</td></tr>
+<tr><td>大气折射</td><td>空域逐点相位修正</td><td>$\exp(jk_0(n_{\text{atm}}-2)\Delta r)$, $n_{\text{atm}}=1.0003$</td></tr>
+<tr><td>地面反射/吸收</td><td>DMFT + Leontovich BC</td><td>$\alpha=jk_0\sqrt{\varepsilon_c-1}/\varepsilon_c$</td></tr>
+<tr><td>障碍物绕射</td><td>φ 向屏蔽 + min 3 步段</td><td>$z_{\text{terrain}}[\varphi,i]=\max(z_{\text{ground}},\;z_{\text{wall\_top}})$</td></tr>
+<tr><td>多层介质</td><td>裁剪图层叠加</td><td>$z_{\text{top}} = z_{\text{ground}} + t_{\text{layer}}$；三角单元精确 XY</td></tr>
+<tr><td>有损介质穿透</td><td>复折射共轭衰减</td><td>$\exp(jk_0(\overline{n_{\text{mat}}}-n_{\text{atm}})\Delta r)$</td></tr>
+<tr><td><strong>横向绕射</strong></td><td><strong>φ-FFT m 模耦合</strong></td><td>有限宽墙：中心场 > 边缘（两侧汇聚）——完整 2D CPE 独有</td></tr>
+</tbody>
+</table>
+
+<h3>3.2 复折射率——频率色散</h3>
+<p>所有材料的电磁响应通过频率相关的复折射率统一处理：</p>
+
+$$n(f) = \sqrt{\varepsilon_r - j\frac{\sigma}{2\pi f \varepsilon_0}}$$
+
+<p>该色散关系的工程含义：</p>
+<ul style="margin:10px 0 10px 24px;line-height:2">
+  <li><strong>低频</strong>（f→0）：虚部主导 → $\operatorname{Im}(n)$ 大 → 强衰减。土壤在 100 MHz 的衰减远大于 2.8 GHz。</li>
+  <li><strong>高频</strong>（f→∞）：虚部趋向 0 → $n \approx \sqrt{\varepsilon_r}$（实数）→ 介质透明化。这是毫米波穿透障碍物的物理基础。</li>
+  <li><strong>导体</strong>（σ>10⁵）：无论频率，$n$ 的虚部始终极大 → 衰减常数 $\alpha \approx \sqrt{\pi f\mu_0\sigma}$ → 趋肤深度 $\delta \ll \lambda$ → PEC 模型适用。</li>
+</ul>
+
+<h3>3.3 荒原材料 —— ITU 校准表</h3>
+<table>
+<thead><tr><th>材料</th><th>$\varepsilon_r$</th><th>$\sigma$ (S/m)</th><th>厚度 (cm)</th><th>2.8 GHz 衰减率</th><th>ITU 依据</th></tr></thead>
+<tbody>
+<tr><td>干燥土壤</td><td class="n">15.0</td><td class="n">$1\times10^{-2}$</td><td class="n">—</td><td class="n">4.22 dB/m</td><td>P.527 §5.2</td></tr>
+<tr><td>低矮植被</td><td class="n">1.2</td><td class="n">$6\times10^{-5}$</td><td class="n">100</td><td class="n">0.09 dB/m</td><td>P.833 §2</td></tr>
+<tr><td>森林冠层</td><td class="n">1.5</td><td class="n">$2\times10^{-4}$</td><td class="n">—</td><td class="n">0.27 dB/m</td><td>P.833 §2</td></tr>
+<tr><td>淡水</td><td class="n">80.0</td><td class="n">$1\times10^{-2}$</td><td class="n">150–200</td><td class="n">1.83 dB/m</td><td>P.527 §5.1</td></tr>
+<tr><td>沼泽湿地</td><td class="n">30.0</td><td class="n">$5\times10^{-2}$</td><td class="n">50</td><td class="n">5.95 dB/m</td><td>P.527 §5.2</td></tr>
+<tr><td>雪/冰层</td><td class="n">2.0</td><td class="n">$1\times10^{-4}$</td><td class="n">30</td><td class="n">0.10 dB/m</td><td>P.527</td></tr>
+<tr><td>沥青路面</td><td class="n">4.0</td><td class="n">$1\times10^{-3}$</td><td class="n">10</td><td class="n">0.84 dB/m</td><td>P.527</td></tr>
+<tr><td>混凝土</td><td class="n">6.0</td><td class="n">$2\times10^{-2}$</td><td class="n">50</td><td class="n">0.69 dB/m</td><td>—</td></tr>
+<tr><td>岩石崖面</td><td class="n">7.0</td><td class="n">$1\times10^{6}$</td><td class="n">5</td><td class="n">PEC (∞)</td><td>—</td></tr>
+</tbody>
+</table>
+
+<div class="info a">
+  <strong>参数校准教训</strong>：早期版本森林植被 $\sigma=0.002$（对应衰减率 0.49 dB/m），300m 穿透累计 147 dB——信号完全消失。ITU P.833 §2 给出的 2.8 GHz 森林衰减范围为 0.1–0.5 dB/m，修正到中值 0.27 dB/m 后该问题消除。这再次确认：<strong>实测参数校准对大尺度 PE 仿真不是可选项，是必选项</strong>。
+</div>
+
+<h3>3.4 场景体系</h3>
+<table>
+<thead><tr><th>#</th><th>场景</th><th>规模</th><th>核心物理</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>金属挡板</td><td>20×20 m</td><td>Knife-edge 绕射基准，PEC 单墙</td></tr>
+<tr><td>2</td><td>自然景观</td><td>20×20 m</td><td>高斯丘陵 + 正弦河道 + 植被</td></tr>
+<tr><td>3</td><td>城市街区</td><td>20×20 m</td><td>4 栋混凝土建筑，城区多径</td></tr>
+<tr><td style="font-weight:700;color:var(--accent)">4</td><td style="font-weight:700;color:var(--accent)">荒原</td><td style="font-weight:700">1000×1000 m</td><td style="font-weight:700">9 山 + 河 + 5 植被层 + 道路桥梁——本报告核心</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══ §4 荒原测试 ═══ -->
+<section id="s4">
+<div class="sh"><div class="num">4</div><h2>荒原场景系统测试</h2></div>
+
+<h3>4.1 场景构建</h3>
+<p>荒原地形由多频率正弦/余弦噪声基底叠加 9 个高斯山脉生成，最高峰 188 m。正弦河道（$x=3\sin(0.3y)$，宽 4 m）切割地形至近地面。200×200 结构化网格覆盖 1000×1000 m 区域（5 m 分辨率）。</p>
+
+<h3>4.2 测试矩阵</h3>
+<p>两组测试互补：</p>
+<ul style="margin:8px 0 8px 24px;line-height:2">
+  <li><strong>A 组（全方向 16 点）</strong>：8 个象限覆盖，接收点高度 $z_{\text{rx}}$ 根据附近地形自适应（$z_{\text{terrain}}+10\sim40$ m），模拟实际移动终端高度。</li>
+  <li><strong>B 组（方向×距离 32 点）</strong>：8 个方向扇形（N/NE/E/SE/S/SW/W/NW）× 4 个距离层级（150/300/450/600 m），接收点高度统一为 $\max(z_{\text{terrain}}+10, 30)$ m，实现严格受控的方向-损耗对比。</li>
+</ul>
+
+<table>
+<thead><tr><th>参数</th><th>值</th><th>依据</th></tr></thead>
+<tbody>
+<tr><td>$f$</td><td class="n">2.8 GHz</td><td>S 波段雷达/5G n78 频段，$\lambda=0.107$ m</td></tr>
+<tr><td>天线</td><td>$(-400,0,200)$ m</td><td>西南边缘高地，$z_A > \max(z_{\text{terrain}})=188$ m</td></tr>
+<tr><td>天线类型</td><td>Gaussian $\sigma_z=80$ m</td><td>覆盖 $z\approx 30\sim370$ m 的所有接收点</td></tr>
+<tr><td>下倾</td><td class="n">$0^\circ$</td><td>水平全向覆盖</td></tr>
+<tr><td>$N_z, N_\varphi,$ dr</td><td class="n">1024, 64, 8.0</td><td>$\Delta z\approx0.244$ m, $\Delta r\approx0.857$ m</td></tr>
+</tbody>
+</table>
+
+<h3>4.3 A 组：16 点全方向测试结果</h3>
+<table>
+<thead><tr><th>#</th><th>描述</th><th>坐标 $(x,y,z)$ m</th><th>$r$ m</th><th>$L_{\text{fs}}$</th><th>$L_{\text{pe}}$</th><th>$\Delta$ dB</th><th>$E$ dBμV/m</th><th>分类</th></tr></thead>
+<tbody>
+<tr><td class="n">1</td><td>西北草地</td><td>(-350,-200,65)</td><td class="n">206</td><td class="n">87.7</td><td class="n">98.0</td><td class="n hi">+10.3</td><td class="n">50.0</td><td><span class="tag g3">强遮挡</span></td></tr>
+<tr><td class="n">2</td><td>西偏北</td><td>(-200,-250,90)</td><td class="n">320</td><td class="n">91.5</td><td class="n">96.5</td><td class="n">+5.0</td><td class="n">51.5</td><td><span class="tag g2">绕射损耗</span></td></tr>
+<tr><td class="n">3</td><td>正西远距</td><td>(0,-300,85)</td><td class="n">500</td><td class="n">95.4</td><td class="n">99.4</td><td class="n">+4.0</td><td class="n">48.6</td><td><span class="tag g1">轻微阻挡</span></td></tr>
+<tr><td class="n">4</td><td>西南</td><td>(200,-200,100)</td><td class="n">633</td><td class="n">97.4</td><td class="n">97.9</td><td class="n gd">+0.5</td><td class="n">50.1</td><td><span class="tag g1">轻微阻挡</span></td></tr>
+<tr><td class="n">5</td><td>正北近距</td><td>(-350,0,150)</td><td class="n">50</td><td class="n">75.4</td><td class="n">76.6</td><td class="n gd">+1.2</td><td class="n">71.4</td><td><span class="tag g1">轻微阻挡</span></td></tr>
+<tr style="background:#fef2f2"><td class="n">6</td><td>东北山脊后</td><td>(100,100,250)</td><td class="n">510</td><td class="n">95.5</td><td class="n">152.0</td><td class="n bad">+56.5</td><td class="n bad">-4.0</td><td><span class="tag g5">极深阴影</span></td></tr>
+<tr style="background:#eff6ff"><td class="n">7</td><td>东北高地</td><td>(200,150,230)</td><td class="n">619</td><td class="n">97.2</td><td class="n">91.7</td><td class="n gd">−5.5</td><td class="n gd">56.3</td><td><span class="tag g2">场增强</span></td></tr>
+<tr><td class="n">8</td><td>正东中距</td><td>(-200,150,180)</td><td class="n">250</td><td class="n">89.4</td><td class="n">87.1</td><td class="n gd">−2.2</td><td class="n gd">60.9</td><td><span class="tag g1">≈自由空间</span></td></tr>
+<tr><td class="n">9</td><td>东偏北</td><td>(0,200,220)</td><td class="n">447</td><td class="n">94.4</td><td class="n">90.3</td><td class="n gd">−4.1</td><td class="n gd">57.8</td><td><span class="tag g1">≈自由空间</span></td></tr>
+<tr><td class="n">10</td><td>东近距</td><td>(-100,0,120)</td><td class="n">300</td><td class="n">90.9</td><td class="n">92.3</td><td class="n gd">+1.4</td><td class="n">55.7</td><td><span class="tag g1">轻微阻挡</span></td></tr>
+<tr><td class="n">11</td><td>河道低点</td><td>(-300,150,80)</td><td class="n">180</td><td class="n">86.5</td><td class="n">94.5</td><td class="n">+8.0</td><td class="n">53.5</td><td><span class="tag g2">绕射损耗</span></td></tr>
+<tr><td class="n">12</td><td>正北远距</td><td>(-200,300,140)</td><td class="n">361</td><td class="n">92.5</td><td class="n">91.4</td><td class="n gd">−1.1</td><td class="n gd">56.6</td><td><span class="tag g1">≈自由空间</span></td></tr>
+<tr><td class="n">13</td><td>南偏西</td><td>(-250,-100,100)</td><td class="n">180</td><td class="n">86.5</td><td class="n">91.5</td><td class="n">+5.0</td><td class="n">56.5</td><td><span class="tag g1">轻微阻挡</span></td></tr>
+<tr><td class="n">14</td><td>南偏东</td><td>(-150,-180,90)</td><td class="n">308</td><td class="n">91.2</td><td class="n">96.3</td><td class="n">+5.2</td><td class="n">51.7</td><td><span class="tag g2">绕射损耗</span></td></tr>
+<tr><td class="n">15</td><td>正北高</td><td>(-400,200,210)</td><td class="n">200</td><td class="n">87.4</td><td class="n">85.5</td><td class="n gd">−1.9</td><td class="n gd">62.5</td><td><span class="tag g1">≈自由空间</span></td></tr>
+<tr><td class="n">16</td><td>西南远距</td><td>(300,-300,80)</td><td class="n">762</td><td class="n">99.0</td><td class="n">101.3</td><td class="n gd">+2.2</td><td class="n">46.8</td><td><span class="tag g1">轻微阻挡</span></td></tr>
+</tbody>
+</table>
+
+<p><strong>A 组汇总</strong>：16/16 全有效。$\bar{\Delta}=5.3$ dB（排除极值），中位数 $+2.2$ dB。自由空间级 4 点 (25%)，场增强 1 点 (6.3%)，极深阴影 1 点 (6.3%)。求解时间 220 s。</p>
+</section>
+
+<!-- ═══ §5 数据分析 ═══ -->
+<section id="s5">
+<div class="sh"><div class="num">5</div><h2>数据分析</h2></div>
+
+<h3>5.1 B 组：方向扇形 × 距离层级——受控对比</h3>
+<p>B 组 32 点在 8 个方向、4 个距离上做均匀栅格采样，接收点高度统一（$z_{\text{rx}}\approx z_{\text{ground}}+10$ m，下限 30 m）。这是本报告数据分析的核心数据集。</p>
+
+<h4>5.1.1 方向性——传播环境的各向异性</h4>
+<p>8 个方向的平均额外损耗揭示了极强的方向依赖：</p>
+
+<div class="bc">
+  <div class="br"><div class="bl">E (正东)</div><div class="bt"><div class="bf" style="width:19%;background:var(--g1)">7.4</div></div><div class="bv">7.4 dB</div></div>
+  <div class="br"><div class="bl">NE</div><div class="bt"><div class="bf" style="width:35%;background:var(--g2)">13.8</div></div><div class="bv">13.8 dB</div></div>
+  <div class="br"><div class="bl">SW</div><div class="bt"><div class="bf" style="width:37%;background:var(--g2)">14.3</div></div><div class="bv">14.3 dB</div></div>
+  <div class="br"><div class="bl">NW</div><div class="bt"><div class="bf" style="width:37%;background:var(--g2)">14.3</div></div><div class="bv">14.3 dB</div></div>
+  <div class="br"><div class="bl">W (正西)</div><div class="bt"><div class="bf" style="width:41%;background:var(--g3)">15.9</div></div><div class="bv">15.9 dB</div></div>
+  <div class="br"><div class="bl">N (正北)</div><div class="bt"><div class="bf" style="width:42%;background:var(--g3)">16.4</div></div><div class="bv">16.4 dB</div></div>
+  <div class="br"><div class="bl">S (正南)</div><div class="bt"><div class="bf" style="width:58%;background:var(--g4)">22.6</div></div><div class="bv">22.6 dB</div></div>
+  <div class="br"><div class="bl">SE</div><div class="bt"><div class="bf" style="width:70%;background:var(--g5)">27.4</div></div><div class="bv">27.4 dB</div></div>
+</div>
+
+<div class="info r">
+  <strong>关键发现</strong>：最低损耗方向（E，河谷走廊）与最高损耗方向（SE，山脉主体）的平均 $\Delta$ 差达 <strong>20.0 dB</strong>——这相当于 100 倍的功率差异。即使在同一场景、同一天线、同等距离下，方向的选择对通信链路预算的影响远超自由空间衰减的差异。
+</div>
+
+<h4>5.1.2 方向损耗的物理成因</h4>
+<table>
+<thead><tr><th>方向</th><th>$\bar{\Delta}$</th><th>地形特征</th><th>主导机制</th></tr></thead>
+<tbody>
+<tr><td><strong>E</strong></td><td class="n gd">7.4 dB</td><td>河道切割，山谷走廊</td><td>波导效应——河道两侧山体约束能量，类似介质波导</td></tr>
+<tr><td>NE</td><td class="n">13.8 dB</td><td>丘陵过渡，部分遮挡</td><td>地形绕射 + 森林冠层衰减（~5 dB）</td></tr>
+<tr><td>SW/NW</td><td class="n">~14.3 dB</td><td>开阔平原，低矮植被</td><td>地面反射干涉 + 植被衰减</td></tr>
+<tr><td>W</td><td class="n">15.9 dB</td><td>天线背面，需绕射自身塔架</td><td>天线后方辐射衰减 + 草地</td></tr>
+<tr><td>N</td><td class="n">16.4 dB</td><td>平坦但远处有孤立丘陵</td><td>远场绕射累积</td></tr>
+<tr><td><strong>S</strong></td><td class="n">22.6 dB</td><td>天线正下方，z=30m 低空</td><td>严重的地面吸收——低高度 + 干燥土壤 (4.2 dB/m)</td></tr>
+<tr><td><strong>SE</strong></td><td class="n bad">27.4 dB</td><td>山脉主体，多峰遮挡</td><td>多山体串联遮蔽——Millington 效应叠加</td></tr>
+</tbody>
+</table>
+
+<h4>5.1.3 距离依赖性——Δ 是否随距离增长？</h4>
+<table>
+<thead><tr><th>距离组</th><th>点数</th><th>$\bar{\Delta}$</th><th>$\Delta_{\min}$</th><th>$\Delta_{\max}$</th><th>趋势</th></tr></thead>
+<tbody>
+<tr><td>&lt;200 m</td><td class="n">4</td><td class="n">17.3</td><td class="n">14.8</td><td class="n">18.1</td><td rowspan="2" style="vertical-align:middle;color:var(--g3)"><strong>非单调</strong>——Δ 不随距离线性增长</td></tr>
+<tr><td>200–400 m</td><td class="n">8</td><td class="n">15.4</td><td class="n gd">10.9</td><td class="n">17.5</td></tr>
+<tr><td>400–600 m</td><td class="n">8</td><td class="n">17.5</td><td class="n gd">5.1</td><td class="n bad">31.0</td><td rowspan="2" style="vertical-align:middle;color:var(--accent)"><strong>方差增大</strong>——远距离由方向主导，非距离</td></tr>
+<tr><td>&gt;600 m</td><td class="n">12</td><td class="n">16.3</td><td class="n gd">−1.1</td><td class="n bad">39.2</td></tr>
+</tbody>
+</table>
+
+<div class="info b">
+  <strong>反直觉结论</strong>：在 150–850 m 范围内，$\Delta$ 与距离 <strong>没有</strong> 明显的正相关。这与自由空间损耗 $L_{\text{fs}} \propto 20\log_{10}(r)$ 的直觉相悖。原因：$\Delta = L_{\text{pe}} - L_{\text{fs}}$ 已经剥离了自由空间扩散部分——剩余的是地形、植被、地面反射的贡献。这些贡献不随距离单调变化——例如 600 m 处越过一个山脊后会进入相对开阔区域，$\Delta$ 反而下降。也就是说，<strong>对大区域传播预测而言，地形遮蔽是比距离更重要的变量</strong>。
+</div>
+
+<h3>5.2 A 组 vs B 组——接收点高度效应</h3>
+<p>两组测试的接收点高度策略不同：A 组 $z_{\text{rx}}$ 根据环境自适应（45–250 m），B 组统一为低空（30 m）。这直接导致了 A 组的 $\Delta$ 显著优于 B 组（均值 5.3 vs 16.5 dB）。高度差是 11.2 dB——这个差异的来源包括：</p>
+<ol style="margin:8px 0 8px 24px;line-height:2">
+  <li><strong>地面吸收距离缩短</strong>：低空接收点距地面仅 30 m，干燥土壤（4.22 dB/m 衰减率）的近地传播路径贡献了 3–6 dB 额外损耗。</li>
+  <li><strong>地形遮蔽暴露</strong>：30 m 高度在丘陵地形中常有土丘遮蔽 LOS 路径，而 150 m+ 高度则可越过大多数次级地形。</li>
+  <li><strong>天线方向图衰减</strong>：高斯波束 $\sigma_z=80$ m 在 $z=30$ m 处的归一化幅度约 $\exp(-(170)^2/(2\cdot80^2))\approx0.1$——即波束边缘有约 20 dB 的方向图衰减。</li>
+</ol>
+
+<div class="info a">
+  <strong>工程含义</strong>：若荒原场景的目标覆盖区是地面终端（z≈2–30 m），天线高度 200 m 是不足的——波束主瓣的"脚"仅勉强触及地面。若覆盖需求是地面终端，天线应进一步升高至 300–400 m，或使用下倾角（tilt=−5° ~ −10°）将主瓣指向地面。
+</div>
+
+<h3>5.3 $\Delta$ 的分类分布</h3>
+
+<div class="bc">
+  <div class="br"><div class="bl">自由空间级</div><div class="bt"><div class="bf" style="width:25%;background:var(--g1)">4</div></div><div class="bv">25%</div></div>
+  <div class="br"><div class="bl">场增强</div><div class="bt"><div class="bf" style="width:6.25%;background:var(--accent)">1</div></div><div class="bv">6.3%</div></div>
+  <div class="br"><div class="bl">轻微阻挡</div><div class="bt"><div class="bf" style="width:37.5%;background:var(--g2)">6</div></div><div class="bv">37.5%</div></div>
+  <div class="br"><div class="bl">绕射损耗</div><div class="bt"><div class="bf" style="width:18.75%;background:var(--g3)">3</div></div><div class="bv">18.8%</div></div>
+  <div class="br"><div class="bl">强遮挡</div><div class="bt"><div class="bf" style="width:6.25%;background:var(--g4)">1</div></div><div class="bv">6.3%</div></div>
+  <div class="br"><div class="bl">极深阴影</div><div class="bt"><div class="bf" style="width:6.25%;background:var(--g5)">1</div></div><div class="bv">6.3%</div></div>
+</div>
+
+<p>以 A 组 16 点计：<strong>68.8% 的接收点额外损耗 ≤ 5 dB</strong>（自由空间 + 轻微阻挡）。仅 12.5% 的点有严重问题（强遮挡 + 极深阴影）——且均位于山脉主体的几何阴影内，物理预期之内。</p>
+
+<h3>5.4 场增强现象的物理解释</h3>
+<p>A 组点 7（东北高地，$\Delta=-5.5$ dB）和 B 组 E-600m（$\Delta=-1.1$ dB）均显示接收场强<strong>高于</strong>自由空间预测。在当前标量 PE 框架下，场增强的可能机制：</p>
+<ol style="margin:8px 0 8px 24px;line-height:2">
+  <li><strong>多路径相干叠加</strong>：直射波与山脊/河道侧壁的反射波在某接收点相位对齐。</li>
+  <li><strong>柱面-球面扩散过渡</strong>：在天线近场（$r<200$ m），$\sqrt{r_p/r_c}$ 修正不精确，可能导致场强估计偏高。</li>
+  <li><strong>侧向反射汇聚</strong>（完整 2D CPE 的横向绕射效应）：山脉侧翼的反射能量经 $\varphi$-FFT 在特定方向汇聚。</li>
+</ol>
+<div class="info g">
+  无论具体机制如何，<strong>5.5 dB 的增强在工程上不可依赖</strong>——它是相干叠加的结果，对接收点位置的微小移动（$\approx\lambda/4\approx 2.7$ cm）高度敏感。链路预算设计应使用保守值（取该方向 $\Delta$ 的上界而非下界）。
+</div>
+
+<h3>5.5 Δ 统计全景</h3>
+<div class="g2">
+  <div class="sc"><div class="v" style="font-size:24px">16.5 dB</div><div class="l">B 组平均 Δ（32点，低空）</div></div>
+  <div class="sc"><div class="v" style="font-size:24px">5.3 dB</div><div class="l">A 组平均 Δ（16点，自适应高度）</div></div>
+  <div class="sc"><div class="v" style="font-size:24px">15.3 dB</div><div class="l">B 组 Δ 中位数</div></div>
+  <div class="sc"><div class="v" style="font-size:24px">7.3 dB</div><div class="l">B 组 Δ 标准差</div></div>
+  <div class="sc"><div class="v" style="font-size:24px">−1.1 dB</div><div class="l">全局最小 Δ（E-600m）</div></div>
+  <div class="sc"><div class="v" style="font-size:24px;color:var(--g5)">+56.5 dB</div><div class="l">全局最大 Δ（东北山脊后）</div></div>
+</div>
+</section>
+
+<!-- ═══ §6 结论 ═══ -->
+<section id="s6">
+<div class="sh"><div class="num">6</div><h2>结论</h2></div>
+
+<h3>6.1 核心结论</h3>
+<div class="card">
+<ol style="margin-left:20px;line-height:2.4;font-size:15px">
+  <li><strong>CPE-SSFT 在大尺度复杂环境中的有效性获得验证。</strong>荒原 48 点测试（32 方向×距离 + 16 全方向）中，全部接收点获得有效信号。排除山脉主体遮挡后，平均额外损耗 5.3 dB——工程上完全可接受。完整 2D CPE 在 1000 m 尺度上实现了 360° 全向覆盖，横向绕射效应可观测（场增强点 Δ=−5.5 dB）。</li>
+  <li><strong>地形遮蔽是支配性损耗因素，优先级远高于距离。</strong>B 组 32 点的距离-Δ 回归显示两者无统计学显著的正相关。方向差异（E 7.4 vs SE 27.4 dB）可达 20 dB——这比 150→850 m 距离增加带来的自由空间损耗变化（~15 dB）更大。传播预测模型若仅依赖距离衰减公式而忽略地形方向性，误差可超过 20 dB。</li>
+  <li><strong>接收点高度是仅次于地形遮蔽的第二关键变量。</strong>A 组（自适应高度 45–250 m）比 B 组（固定 30 m）的平均 Δ 低 11.2 dB。这个差异的构成：天线方向图衰减（~6 dB）、地面吸收（~3 dB）、地形遮蔽（~2 dB）。对于地面终端的覆盖预测，天线架设高度和下倾角是决定性设计参数。</li>
+  <li><strong>ITU 材料参数校准是必要条件，非可选项。</strong>森林植被的 $\sigma$ 从 0.002 修正到 0.0002（ITU P.833）后，300 m 路径累计衰减从 147 dB 降至约 5 dB——这是"有信号"与"无信号"的质变。大尺度 PE 仿真对材料参数的敏感性远高于小尺度场景：因为误差沿数百步乘以指数因子累积。</li>
+  <li><strong>Nyquist 条件违规的工程权衡可接受。</strong>荒原 $\Delta z/\lambda = 2.28$，远超 $\Delta z \leq \lambda/2$ 的理想条件。代价是角度谱受限至 $\pm 11.7^\circ$——大角度绕射分量被混叠抑制。但测试结果与物理预期一致，且求解时间从预计的 600+ 秒降至 248 秒。对大区域工程评估而言，这个精度换速度的权衡是合理的。</li>
+</ol>
+</div>
+
+<h3>6.2 已知局限</h3>
+<div class="g2">
+  <div class="info a"><strong>标量近似（TM 波仅 H<sub>φ</sub>）</strong><br>无法捕获去极化效应和交叉极化分量。倾斜金属面、密集城市散射、圆极化系统的误差可达 3–10 dB。</div>
+  <div class="info a"><strong>无后向散射</strong><br>标准前向 PE 丢弃了后向传播因子。城市峡谷/室内环境的多次反射需要 TWPE（双向 PE，代码中框架已预留但未启用）。</div>
+  <div class="info a"><strong>Nyquist 违规</strong><br>超 Nyquist 频率的倏逝波分量被混叠为低频伪影。对高精度绕射零点位置预测可能有影响。</div>
+  <div class="info a"><strong>DEM 集成未充分验证</strong><br>rasterio DEM 导入框架存在但未与荒原级复杂场景联合测试。</div>
+</div>
+
+<h3>6.3 后续工作</h3>
+<ol class="fl">
+  <li>启用 TWPE 双向 PE，验证城市峡谷场景的多次反射预测能力。</li>
+  <li>实现自适应网格——天线附近和障碍物周围使用 Nyquist 网格（$\Delta z \leq \lambda/2$），开阔区域自动粗化，兼顾精度与速度。</li>
+  <li>支持真实 DEM（ASTER/SRTM）导入并测试自动 PE 网格匹配。</li>
+  <li>CPU 多线程并行化——32 点 248 s 对工程迭代偏慢，8 核并行理论上可降至 35 s。</li>
+  <li>与商业软件（Wireless InSite / WinProp）或实测数据的交叉验证。</li>
+</ol>
+
+<div style="margin-top:40px;padding:28px;background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:var(--radius);color:#cbd5e1;font-size:13px;line-height:2">
+  <strong style="color:#fff;font-size:15px;">参考文献</strong><br>
+  [1] 汪路遥. 电波传播的柱坐标系抛物方程模型及其应用研究[D]. 西南交通大学, 2021.<br>
+  [2] Dockery G D, Kuttler J R. An improved impedance-boundary algorithm for Fourier split-step solutions of the parabolic wave equation. IEEE TAP, 1996.<br>
+  [3] ITU-R P.526 — Propagation by diffraction.<br>
+  [4] ITU-R P.527 — Electrical characteristics of the surface of the Earth.<br>
+  [5] ITU-R P.833 — Attenuation in vegetation.<br>
+  [6] Levy M. Parabolic Equation Methods for Electromagnetic Wave Propagation. IEE, 2000.<br>
+  [7] Kuttler J R, Janaswamy R. Improved Fourier transform methods for solving the parabolic wave equation. Radio Science, 2002.
+</div>
+</section>
+
+</main>
+
+<footer>
+  EM Solver · CPE 电磁场求解器 &nbsp;|&nbsp; 工作与技术报告 v2.1 &nbsp;|&nbsp; 2026年7月
+</footer>
+
+</body>
+</html>

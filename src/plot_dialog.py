@@ -130,8 +130,8 @@ class PlotDialog(QtWidgets.QDialog):
                     TL = -20*np.log10(np.maximum(u_slice/E_ref, 1e-15))
                     for ri2 in range(len(r)): TL[ri2,:] += 10*np.log10(max(r[ri2]/r0, 1.0))
                     TL = np.nan_to_num(TL, nan=200, posinf=200, neginf=0)
-                    # 地形剖面
-                    terrain_z_profile = self._get_terrain_profile(r, phi[pi], cfg)
+                    # 地形剖面 — 优先用求解器的 z_top（含障碍物+clip图层）
+                    terrain_z_profile = self._get_terrain_profile(r, phi[pi], cfg, d)
                     fig = self._contour(R,Z,TL,"TL (dB)",f"r-z TL分布 φ={phi_deg.value():.0f}°","jet",cfg)
                     # 叠加地形线
                     ax = fig.axes[0]
@@ -213,8 +213,16 @@ class PlotDialog(QtWidgets.QDialog):
         self._viewer = FigureViewer(figs, self, self._data)
         self._viewer.show()
 
-    def _get_terrain_profile(self, r_vals, phi_rad, cfg):
-        """采样地形高度沿 phi 方向的剖面。"""
+    def _get_terrain_profile(self, r_vals, phi_rad, cfg, data=None):
+        # 优先用求解器的 z_top（含障碍物+clip图层高度）
+        if data is not None:
+            z_top = data.get("z_top")
+            if z_top is not None:
+                phi_idx = np.argmin(np.abs(data["phi_vals"] - phi_rad))
+                if z_top.ndim == 2:
+                    return z_top[phi_idx, :]
+                return z_top
+        # 回退到 terrain mesh 采样
         scene = self._data.get("scene")
         if scene is None: return None
         terrain = scene.get("terrain")

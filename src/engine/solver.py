@@ -9,6 +9,10 @@ from src.core.context import Context
 N_ATM = 1.0003
 
 
+class SolveCancelled(Exception):
+    """用户在后台求解中取消。"""
+
+
 def run(ctx: Context) -> Context:
     cfg = ctx.config
 
@@ -23,6 +27,7 @@ def run(ctx: Context) -> Context:
         ctx.dmft,
         cfg.k0, cfg.n_atm, cfg.n_phi, cfg.n_z,
         forward=True,
+        progress_cb=ctx.progress_cb, cancel_cb=ctx.cancel_cb,
     )
     ctx.u_total = u_fwd
     return ctx
@@ -30,7 +35,8 @@ def run(ctx: Context) -> Context:
 
 def _pe_march(u, r_vals, dr, z_vals, dz,
               z_grd, z_top, n_grd, c_grd, n_lay, c_lay,
-              dmft, k0, n_atm, n_phi, n_z, forward):
+              dmft, k0, n_atm, n_phi, n_z, forward,
+              progress_cb=None, cancel_cb=None):
     nr = len(r_vals)
     if dmft is not None:
         kz_vals = dmft["kz"]
@@ -40,7 +46,10 @@ def _pe_march(u, r_vals, dr, z_vals, dz,
     k_r = np.sqrt(np.maximum((k0 * n_atm) ** 2 - kz_vals ** 2, 0.0))
     k_r_ok = k_r > 1e-12
 
-    refract = np.exp(1j * k0 * (n_atm - 2.0) * abs(dr))
+    # Hankel 步进施加全相位 e^{j·k_r·dr}（载波 k0·n_atm），
+    # 剥掉大气载波后得到约化场相位 e^{j·(k_r-k0·n_atm)·dr}（标准 SSFT 约定），
+    # 与地面折射项 e^{j·k0·(n_grd-n_atm)·dr} 的参考介质一致。
+    refract = np.exp(-1j * k0 * n_atm * abs(dr))
 
     n_taper = n_z // 8
     taper = np.ones(n_z)
@@ -55,7 +64,12 @@ def _pe_march(u, r_vals, dr, z_vals, dz,
     u_full = np.zeros((nr, n_phi, n_z), dtype=np.complex64)
     u_full[0] = u
 
+    report_every = max(1, nr // 200)
     for i in range(1, nr):
+        if cancel_cb is not None and cancel_cb():
+            raise SolveCancelled()
+        if progress_cb is not None and (i % report_every == 0 or i == nr - 1):
+            progress_cb("求解", i, nr - 1)
         rp, rc = r_vals[i - 1], r_vals[i]
 
         if dmft is not None:

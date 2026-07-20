@@ -3,6 +3,7 @@ Preprocessing 模块 — 网格建立、材料映射、DMFT、初始场。
 """
 
 import numpy as np
+from scipy.spatial import cKDTree
 from src.core.context import Context
 from src.physics.terrain import sample_terrain
 from src.physics.materials import resolve_material, get_material, is_conductor
@@ -33,6 +34,16 @@ def run(ctx: Context) -> Context:
     ctx.r_vals = r_vals
     ctx.dr = dr
 
+    # 高度网格精度检查：dz 过大 → 可表示的垂直波数谱受限，大角度绕射丢失
+    lam = cfg.wavelength
+    max_angle = np.degrees(np.arcsin(min(1.0, np.pi / (dz * cfg.k0 * cfg.n_atm))))
+    if dz > lam / 2:
+        ctx.warnings.append(
+            f"高度网格过粗：dz={dz:.3f} m（λ/2={lam/2:.3f} m），"
+            f"传播角度谱受限至 ±{max_angle:.1f}°，大角度绕射/垂直干涉精度下降。"
+            f"建议增大 N_Z 或减小高度留白。"
+        )
+
     # ── 3. 材料映射 ──
     phi_vals = np.linspace(0, 2 * np.pi, cfg.n_phi, endpoint=False)
     ctx.phi_vals = phi_vals
@@ -56,6 +67,8 @@ def run(ctx: Context) -> Context:
         ant_cfg, z_vals, cfg.n_phi, cfg.antenna_pos[2], cfg.k0, r0
     )
 
+    if ctx.progress_cb is not None:
+        ctx.progress_cb("预处理", 1, 1)
     return ctx
 
 
@@ -80,6 +93,16 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
     cg = np.zeros((n_phi, nr), dtype=bool)
     nl = np.full((n_phi, nr), n_atm, dtype=np.complex64)
     cl = np.zeros((n_phi, nr), dtype=bool)
+
+    # 预计算不规则材质层的 XY 精确覆盖（三角单元投影 + KDTree 候选检索）
+    layer_covers = {}
+    for nm_key, o in scene.items():
+        extra = o.get("extra") or {}
+        if not extra.get("is_material_layer"):
+            continue
+        cover = _build_layer_cover(o.get("mesh"))
+        if cover is not None:
+            layer_covers[nm_key] = cover
 
     for pi, phi in enumerate(phi_vals):
         c, s = np.cos(phi), np.sin(phi)
@@ -139,7 +162,7 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
             extra_o = o.get("extra") or {}
             if extra_o.get("is_material_layer"):
                 continue
-            if extra_o.get("material") is None and extra_o.get("obstacle_type") != "wall":
+            if extra_o.get("obstacle_type") not in ("wall", "building", "obstacle"):
                 continue
             msh = o.get("mesh")
             if msh is None: continue
@@ -166,9 +189,14 @@ def _extract_material_maps(cfg, scene, r_vals, phi_vals, nr):
             if m is None: continue
             thick = m.get("thickness_cm", 0.0) / 100.0
             if thick <= 0: continue
-            b = msh.bounds
-            inside = ((xp >= b[0]) & (xp <= b[1]) &
-                      (yp >= b[2]) & (yp <= b[3]))
+            # 精确 XY 覆盖（网格单元投影），替代会严重夸大范围的矩形 bounds
+            cover = layer_covers.get(nm_key)
+            if cover is not None:
+                inside = _points_covered(cover, xp, yp)
+            else:
+                b = msh.bounds
+                inside = ((xp >= b[0]) & (xp <= b[1]) &
+                          (yp >= b[2]) & (yp <= b[3]))
             if not inside.any(): continue
             zt[pi, inside] = np.maximum(zt[pi, inside], zg[pi, inside] + thick)
             nc, cond = resolve_material(freq, m)
@@ -237,6 +265,85 @@ def _clip_counter(name):
         try: return int(parts[1])
         except ValueError: pass
     return 0
+
+
+def _build_layer_cover(mesh):
+    """把材质层网格在 XY 平面投影为三角单元集合，供精确覆盖判定。
+
+    返回 dict(centroids, radii, polys, tree, r_max)，网格退化时返回 None
+    （调用方回退到矩形 bounds 判定）。
+    """
+    if mesh is None:
+        return None
+    try:
+        surf = mesh.extract_surface().triangulate()
+        if surf.n_cells < 1 or surf.n_points < 3:
+            return None
+        pts = np.asarray(surf.points, dtype=np.float64)[:, :2]
+        faces = np.asarray(surf.faces, dtype=np.int64).reshape(-1, 4)
+        tris = faces[:, 1:4]
+        polys = pts[tris]                                   # (n_cells, 3, 2)
+        centroids = polys.mean(axis=1)                      # (n_cells, 2)
+        radii = np.max(np.linalg.norm(polys - centroids[:, None, :], axis=2), axis=1)
+        r_max = float(radii.max())
+        if not np.isfinite(r_max) or r_max <= 0:
+            return None
+        return {
+            "polys": np.ascontiguousarray(polys),
+            "centroids": np.ascontiguousarray(centroids),
+            "tree": cKDTree(centroids),
+            "r_max": r_max,
+        }
+    except Exception:
+        return None
+
+
+def _points_covered(cover, xp, yp):
+    """判定 (xp, yp) 是否落在材质层任一三角单元的 XY 投影内。
+
+    恰好在单元边上的点 ray-casting 判定不稳定（会漏判），
+    中心判定失败时以 4 个微扰邻点重试，消除边界退化。
+    """
+    query = np.column_stack([xp, yp])
+    # 候选检索半径 = 最大单元外接半径：点到质心距离 ≤ r_max 才可能被覆盖
+    cand_lists = cover["tree"].query_ball_point(query, r=cover["r_max"])
+    # 扁平化为 CSR 结构，一次性进入 njit（避免逐点 numba 类型分派开销）
+    counts = np.fromiter((len(c) for c in cand_lists), dtype=np.int64, count=len(cand_lists))
+    cand_ptr = np.zeros(len(cand_lists) + 1, dtype=np.int64)
+    np.cumsum(counts, out=cand_ptr[1:])
+    total = int(cand_ptr[-1])
+    if total == 0:
+        return np.zeros(len(xp), dtype=bool)
+    cand_idx = np.fromiter(
+        (ci for c in cand_lists for ci in c), dtype=np.int64, count=total)
+    eps = max(cover["r_max"] * 1e-3, 1e-6)
+    return _covered_batch(
+        np.ascontiguousarray(xp, dtype=np.float64),
+        np.ascontiguousarray(yp, dtype=np.float64),
+        cand_ptr, cand_idx, cover["polys"], eps)
+
+
+@njit
+def _covered_batch(xp, yp, cand_ptr, cand_idx, polys, eps):
+    inside = np.zeros(len(xp), dtype=np.bool_)
+    for i in range(len(xp)):
+        s, e = cand_ptr[i], cand_ptr[i + 1]
+        x, y = xp[i], yp[i]
+        found = False
+        for k in range(s, e):
+            if _point_in_poly(x, y, polys[cand_idx[k]]):
+                found = True
+                break
+        if not found:
+            for dx, dy in ((eps, 0.0), (-eps, 0.0), (0.0, eps), (0.0, -eps)):
+                for k in range(s, e):
+                    if _point_in_poly(x + dx, y + dy, polys[cand_idx[k]]):
+                        found = True
+                        break
+                if found:
+                    break
+        inside[i] = found
+    return inside
 
 
 @njit

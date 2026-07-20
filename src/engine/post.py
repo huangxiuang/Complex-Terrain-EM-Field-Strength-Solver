@@ -10,6 +10,10 @@ def run(ctx: Context) -> Context:
     cfg = ctx.config
     results = []
 
+    # φ=0 剖面的场与地形（visualizer/run.py --plot 依赖）
+    field_rz = np.abs(ctx.u_total[:, 0, :]) if ctx.u_total.size else None
+    z_terrain = ctx.z_top[0, :] if ctx.z_top.size else None
+
     for rx in ctx.rx_points:
         r, phi = _cart_to_cyl(rx, cfg.antenna_pos)
         # 找到每个接收点对应的径向索引
@@ -35,6 +39,8 @@ def run(ctx: Context) -> Context:
             "z_grid": ctx.z_vals,
             "phi_grid": ctx.phi_vals,
             "z_terrain_2d": ctx.z_top,
+            "field_rz": field_rz,
+            "z_terrain": z_terrain,
         })
 
     ctx.results = results

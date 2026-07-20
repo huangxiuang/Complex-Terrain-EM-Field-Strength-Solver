@@ -7,17 +7,24 @@ from numba import njit
 
 
 def sample_terrain(mesh, xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
-    """在 (xp, yp) 处采样地面高度。"""
+    """在 (xp, yp) 处采样地面高度。
+
+    注意：PyVista StructuredGrid 的点序为 **Y 最快变化**
+    （pts[k] = (xs[k // ny], ys[k % ny])），解析网格轴时必须按此约定。
+    """
     pts = np.asarray(mesh.points, dtype=np.float32)
     if pts.shape[1] < 3:
         return np.zeros_like(xp, dtype=np.float32)
     try:
         dims = mesh.dimensions
         nx, ny = dims[0], dims[1]
-        xs = pts[:nx, 0]
-        ys = pts[::nx, 1][:ny]
+        if pts.shape[0] != nx * ny * (dims[2] if len(dims) > 2 else 1):
+            raise ValueError("非规则网格，回退最近邻")
+        xs = pts[::ny, 0]          # 每 ny 个点取一个 → x 轴坐标
+        ys = pts[:ny, 1]           # 前 ny 个点 → y 轴坐标
+        # z2d[iy, ix] = (xs[ix], ys[iy]) 处的高度
         z2d = np.ascontiguousarray(
-            pts[:, 2].reshape((ny, nx), order="F").astype(np.float32)
+            pts[:, 2].reshape((nx, ny)).T.astype(np.float32)
         )
         return _bilinear_interp_terrain(
             xs, ys, z2d,

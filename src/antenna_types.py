@@ -87,9 +87,9 @@ def _antenna_pattern(antenna_config, z_vals, h_ant, r0):
         theta_d = np.pi / 2 - np.arctan2(z_eff, r0)  # 从垂直轴的角度
         sin_td = np.sin(np.maximum(np.abs(theta_d), 1e-12))
         pattern = np.abs(np.cos(np.pi / 2 * np.cos(theta_d))) / sin_td
-        # 处理 θ_d → 0 的极限：cos(π/2) / 0 → π/2
+        # θ_d → 0（轴向）的物理极限为 0（沿轴无辐射）
         zero_mask = np.abs(theta_d) < 1e-4
-        pattern[zero_mask] = np.pi / 2
+        pattern[zero_mask] = 0.0
 
     elif ant_type == "microstrip_patch":
         # 贴片天线：E(θ) ∝ cos^N(θ_elev), θ_elev 从水平面算

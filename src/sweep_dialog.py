@@ -14,15 +14,23 @@ from matplotlib.figure import Figure
 
 
 class SweepDialog(QtWidgets.QDialog):
-    """扫频求解对话框。"""
+    """扫频求解对话框。
 
-    def __init__(self, parent, scene_objects, antenna_pos, rx_points):
+    antenna_config : dict | None
+        场景天线配置（类型/倾角/dr_factor/z_pad 等）。
+        缺省时用 EMConfig 默认值 —— 之前版本完全忽略天线配置，
+        导致扫频结果与主求解不一致。
+    """
+
+    def __init__(self, parent, scene_objects, antenna_pos, rx_points,
+                 antenna_config=None):
         super().__init__(parent)
         self.setWindowTitle("扫频模式")
         self.setMinimumSize(820, 620)
 
         self._scene = scene_objects
         self._antenna_pos = antenna_pos
+        self._antenna_config = dict(antenna_config) if antenna_config else {}
         self._rx_points = list(rx_points)
         self._results = []          # list of dict: freq, rx_results
         self._running = False
@@ -86,6 +94,11 @@ class SweepDialog(QtWidgets.QDialog):
             "QPushButton:disabled { background: #ccc; }"
         )
         btn_row.addWidget(self._btn_run)
+
+        self._btn_stop = QtWidgets.QPushButton("■ 停止")
+        self._btn_stop.clicked.connect(self._stop_sweep)
+        self._btn_stop.setEnabled(False)
+        btn_row.addWidget(self._btn_stop)
 
         self._progress = QtWidgets.QProgressBar()
         self._progress.setVisible(False)
@@ -154,8 +167,10 @@ class SweepDialog(QtWidgets.QDialog):
         self._progress.setMaximum(n)
         self._progress.setValue(0)
 
-        nz = 1024 if fast else 2048
-        nphi = 64 if fast else 128
+        ac = self._antenna_config
+        # 快速模式分辨率减半；否则用场景天线配置的网格参数
+        nz = 1024 if fast else int(ac.get("fast_nz", 2048))
+        nphi = 64 if fast else int(ac.get("fast_nphi", 128))
 
         for i, freq in enumerate(freqs):
             if not self._running:
@@ -171,6 +186,13 @@ class SweepDialog(QtWidgets.QDialog):
                     frequency=freq,
                     antenna_pos=self._antenna_pos,
                     n_z=nz, n_phi=nphi,
+                    dr_factor=float(ac.get("dr_factor", 1.0)),
+                    antenna_type=ac.get("type", "gaussian"),
+                    antenna_sigma_z=float(ac.get("sigma_z", 4.0)),
+                    antenna_tilt=float(ac.get("tilt_angle", 0.0)),
+                    antenna_patch_hpbw=float(ac.get("patch_hpbw", 70.0)),
+                    antenna_horn_hpbw=float(ac.get("horn_hpbw", 30.0)),
+                    z_pad_above=float(ac.get("z_pad", 20.0)),
                 )
                 sched = Scheduler()
                 all_results = sched.run(

@@ -21,13 +21,19 @@ from src.antenna_types import (
 
 
 class AntennaDialog(QtWidgets.QDialog):
-    """天线参数设置对话框。"""
+    """天线参数设置对话框。
 
-    def __init__(self, parent, antenna_config):
+    pos_limit : float
+        位置 spinbox 的 ± 范围（由主窗口按场景尺度传入，
+        避免大场景天线坐标被 ±100 默认值钳坏）。
+    """
+
+    def __init__(self, parent, antenna_config, pos_limit=120.0):
         super().__init__(parent)
         self.setWindowTitle("天线设置")
         self.setMinimumSize(650, 520)
 
+        self._pos_limit = float(pos_limit)
         # 深拷贝配置
         self._config = dict(antenna_config) if antenna_config else dict(DEFAULT_ANTENNA_CONFIG)
         self._param_spinboxes = {}
@@ -63,20 +69,22 @@ class AntennaDialog(QtWidgets.QDialog):
         # 天线位置
         pos_group = QtWidgets.QGroupBox("天线位置")
         pos_layout = QtWidgets.QFormLayout()
+        lim = self._pos_limit
+        z_lim = max(lim, 300.0)
         self._spin_pos_x = QtWidgets.QDoubleSpinBox()
-        self._spin_pos_x.setRange(-100, 100); self._spin_pos_x.setDecimals(2)
+        self._spin_pos_x.setRange(-lim, lim); self._spin_pos_x.setDecimals(2)
         self._spin_pos_x.setSuffix(" m")
         self._spin_pos_x.valueChanged.connect(self._on_param_changed)
         pos_layout.addRow("X:", self._spin_pos_x)
 
         self._spin_pos_y = QtWidgets.QDoubleSpinBox()
-        self._spin_pos_y.setRange(-100, 100); self._spin_pos_y.setDecimals(2)
+        self._spin_pos_y.setRange(-lim, lim); self._spin_pos_y.setDecimals(2)
         self._spin_pos_y.setSuffix(" m")
         self._spin_pos_y.valueChanged.connect(self._on_param_changed)
         pos_layout.addRow("Y:", self._spin_pos_y)
 
         self._spin_pos_z = QtWidgets.QDoubleSpinBox()
-        self._spin_pos_z.setRange(-10, 200); self._spin_pos_z.setDecimals(2)
+        self._spin_pos_z.setRange(-10, z_lim); self._spin_pos_z.setDecimals(2)
         self._spin_pos_z.setSuffix(" m")
         self._spin_pos_z.valueChanged.connect(self._on_param_changed)
         pos_layout.addRow("Z:", self._spin_pos_z)
@@ -199,12 +207,19 @@ class AntennaDialog(QtWidgets.QDialog):
         self._update_preview()
 
     def _reset_defaults(self):
+        # 只重置天线类型参数与频率；位置保留（天线位置属于场景而非天线参数）
+        cur_pos = (
+            self._spin_pos_x.value(),
+            self._spin_pos_y.value(),
+            self._spin_pos_z.value(),
+        )
         self._config = dict(DEFAULT_ANTENNA_CONFIG)
-        self._config["position"] = (-5.0, 0.0, 6.0)
-        self._config["frequency"] = 2.8e9
-        self._spin_pos_x.setValue(-5.0)
-        self._spin_pos_y.setValue(0.0)
-        self._spin_pos_z.setValue(6.0)
+        self._config["position"] = cur_pos
+        idx = self._type_combo.findData(DEFAULT_ANTENNA_CONFIG["type"])
+        if idx >= 0:
+            self._type_combo.setCurrentIndex(idx)
+        self._freq_spin.setValue(DEFAULT_ANTENNA_CONFIG["frequency"] / 1e9)
+        self._rebuild_params()
         for key, spin in self._param_spinboxes.items():
             params = ANTENNA_PARAMS.get(self._type_combo.currentData(), [])
             for pk, default, _, _, _ in params:

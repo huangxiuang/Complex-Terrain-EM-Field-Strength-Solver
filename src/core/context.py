@@ -38,3 +38,11 @@ class Context:
 
     # ── Post 模块填充 ──
     results: list = field(default_factory=list)
+
+    # ── 求解过程产生的警告（网格精度等），供 UI 展示 ──
+    warnings: list = field(default_factory=list)
+
+    # ── 进度/取消回调（后台求解时由 UI 注入）──
+    # progress_cb(stage: str, done: int, total: int)；cancel_cb() -> bool
+    progress_cb: object = None
+    cancel_cb: object = None
