@@ -142,6 +142,10 @@ class SweepDialog(QtWidgets.QDialog):
 
     # ── 扫频主体 ──
 
+    def _stop_sweep(self):
+        self._running = False
+        self._status_label.setText("正在停止…")
+
     def _run_sweep(self):
         if not self._rx_points:
             QtWidgets.QMessageBox.warning(self, "提示", "请先添加测量点")
@@ -149,6 +153,7 @@ class SweepDialog(QtWidgets.QDialog):
 
         self._running = True
         self._btn_run.setEnabled(False)
+        self._btn_stop.setEnabled(True)
         self._progress.setVisible(True)
         self._results.clear()
         self._table.setRowCount(0)
@@ -217,10 +222,14 @@ class SweepDialog(QtWidgets.QDialog):
                 self._status_label.setText(f"错误 @ {freq/1e9:.1f} GHz: {e}")
                 break
 
-        self._progress.setValue(n)
+        self._progress.setValue(self._progress.maximum() if self._running else self._progress.value())
+        stopped = not self._running
         self._running = False
         self._btn_run.setEnabled(True)
-        self._status_label.setText(f"完成 — {len(self._results)} 个频点")
+        self._btn_stop.setEnabled(False)
+        self._status_label.setText(
+            f"已停止 — {len(self._results)} 个频点" if stopped
+            else f"完成 — {len(self._results)} 个频点")
         self._btn_csv.setEnabled(len(self._results) > 0)
         self._btn_plot.setEnabled(len(self._results) > 0)
 

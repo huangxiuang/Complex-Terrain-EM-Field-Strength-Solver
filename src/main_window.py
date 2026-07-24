@@ -92,6 +92,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._solve_thread = None      # 求解后台线程（非 None 表示求解中）
         self._solve_worker = None
         self._solve_progress = None
+        # 空气（背景介质）参数 — 材料对话框可编辑，求解时换算 n_atm
+        self._air_params = {"eps_r": 1.0006, "sigma": 0.0}
 
         # ── 左侧树形面板 ──
         self._tree = QtWidgets.QTreeWidget()
@@ -648,8 +650,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # 从天线配置中读取场景特定参数（含频率 —— 之前硬编码 2.8 GHz 被忽略）
         ant_cfg = (ant_obj.get("extra") or {}).get("antenna_config") or {}
         freq = float(ant_cfg.get("frequency", 2.8e9))
+        n_atm = float(np.sqrt(self._air_params.get("eps_r", 1.0006)))
         config = EMConfig(
-            frequency=freq, antenna_pos=tx,
+            frequency=freq, antenna_pos=tx, n_atm=n_atm,
             dr_factor=ant_cfg.get("dr_factor", 1.0),
             n_z=ant_cfg.get("fast_nz", 2048),
             n_phi=ant_cfg.get("fast_nphi", 128),
@@ -1026,7 +1029,9 @@ class MainWindow(QtWidgets.QMainWindow):
                 extra["material"] = {"label": label, **dflt}
 
     def _open_material_params(self):
-        dlg = MaterialParamsDialog(self, self.scene_objects, self._antenna_frequency())
+        dlg = MaterialParamsDialog(self, self.scene_objects,
+                                   self._antenna_frequency(),
+                                   air_params=self._air_params)
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
             self._invalidate_field("材料参数已更新")
 

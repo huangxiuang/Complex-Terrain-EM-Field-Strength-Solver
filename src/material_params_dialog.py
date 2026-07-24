@@ -38,14 +38,20 @@ LAYER_MATERIAL_MAP = {
 
 
 class MaterialParamsDialog(QtWidgets.QDialog):
-    """Non-modal dialog to manage material parameters for all non-conductor layers."""
+    """Non-modal dialog to manage material parameters for all non-conductor layers.
 
-    def __init__(self, parent, scene_objects, frequency=2.8e9):
+    air_params : dict | None
+        主窗口持有的空气（背景介质）参数 dict，「应用」时写回；
+        求解器据此计算 n_atm。缺省时空气行仅供参考、不生效。
+    """
+
+    def __init__(self, parent, scene_objects, frequency=2.8e9, air_params=None):
         super().__init__(parent)
         self.setWindowTitle("材料参数设置")
         self.setMinimumSize(950, 480)
         self._scene = scene_objects
         self._freq = frequency
+        self._air_params = air_params
 
         layout = QtWidgets.QVBoxLayout(self)
 
@@ -105,8 +111,8 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         omega = 2.0 * np.pi * self._freq
         eps0 = 8.854187817e-12
 
-        # 首行：空气（背景介质）— 可编辑
-        air = DEFAULT_MATERIALS["空气"]
+        # 首行：空气（背景介质）— 可编辑，应用后影响 n_atm
+        air = self._air_params if self._air_params is not None else DEFAULT_MATERIALS["空气"]
         r0 = self._table.rowCount()
         self._table.insertRow(r0)
         self._table.setItem(r0, 0, QtWidgets.QTableWidgetItem("（背景）"))
@@ -248,8 +254,8 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         self._populate()
 
     def _apply(self):
-        """Write table values back to scene objects."""
-        for name, obj, s_eps, s_sig, s_thick, _, _ in self._rows:
+        """Write table values back to scene objects (+ air params if bound)."""
+        for name, obj, s_eps, s_sig, s_thick, item_re, item_im in self._rows:
             extra = obj.get("extra")
             if extra is None:
                 obj["extra"] = {}
@@ -258,11 +264,22 @@ class MaterialParamsDialog(QtWidgets.QDialog):
             mat["eps_r"] = s_eps.value()
             mat["sigma"] = s_sig.value()
             mat["thickness_cm"] = s_thick.value()
-            mat["label"] = self._table.item(
-                self._table.indexAt(QtCore.QPoint()).row() if False else 0, 1
-            ).text() if False else mat.get("label", "")
+            # 读回用户编辑的材料标签
+            row_idx = self._find_row_index(name)
+            if row_idx is not None and self._table.item(row_idx, 1) is not None:
+                mat["label"] = self._table.item(row_idx, 1).text()
             extra["material"] = mat
+        if self._air_params is not None:
+            self._air_params["eps_r"] = self._air_spin_eps.value()
+            self._air_params["sigma"] = self._air_spin_sig.value()
         self.accept()
+
+    def _find_row_index(self, name):
+        for r in range(self._table.rowCount()):
+            item = self._table.item(r, 0)
+            if item is not None and item.text() == name:
+                return r
+        return None
 
     def _load_defaults(self):
         """Fill missing materials with defaults (safe for missing user input)."""
@@ -293,11 +310,17 @@ class MaterialParamsDialog(QtWidgets.QDialog):
         for name, obj in self._scene.items():
             if name == "antenna" or name in _vis or (name.startswith("layer_") and "_clip" not in name):
                 continue
-            label = LAYER_MATERIAL_MAP.get(name, "干燥土壤")
-            dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"])
             extra = obj.get("extra", {})
+            # 裁剪图层按其所源图层（layer_key）取默认材料，
+            # 否则 layer_sand_clip 等会被错误重置为「干燥土壤」
+            layer_key = (extra or {}).get("layer_key", name)
+            label = LAYER_MATERIAL_MAP.get(layer_key,
+                   LAYER_MATERIAL_MAP.get(name, "干燥土壤"))
+            dflt = DEFAULT_MATERIALS.get(label, DEFAULT_MATERIALS["干燥土壤"])
             extra["material"] = {"label": label, **dflt}
             obj["extra"] = extra
+        if self._air_params is not None:
+            self._air_params.update(DEFAULT_MATERIALS["空气"])
         self._table.setRowCount(0)
         self._rows = []
         self._populate()

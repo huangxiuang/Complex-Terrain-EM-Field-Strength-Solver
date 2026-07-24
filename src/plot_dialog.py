@@ -22,13 +22,15 @@ PLOT_DEFS = [
         ("phi_deg", "方位角 φ (°)", -90, 90, lambda d: 0),
     ]),
     ("φ-z 传输损耗分布", "phiz_tl", [
-        ("r_fix", "固定距离 r (m)", 0, 999, lambda d: float(d["r_vals"][-1])),
+        ("r_fix", "固定距离 r (m)", 0, 9999, lambda d: float(d["r_vals"][-1])),
     ]),
     ("路径损耗 vs 距离", "tl_vs_r", [
-        ("z_fix", "固定高度 z (m)", 0, 200, lambda d: float(d["config"].antenna_pos[2])),
+        ("z_fix", "固定高度 z (m)", 0, 9999, lambda d: float(d["config"].antenna_pos[2])),
+        ("phi_deg", "方位角 φ (°)", -90, 90, lambda d: 0),
     ]),
     ("场强 vs 高度", "e_vs_z", [
-        ("r_fix", "固定距离 r (m)", 0, 999, lambda d: float(d["r_vals"][-1])),
+        ("r_fix", "固定距离 r (m)", 0, 9999, lambda d: float(d["r_vals"][-1])),
+        ("phi_deg", "方位角 φ (°)", -90, 90, lambda d: 0),
     ]),
     ("TL 3D 表面", "tl_3d", []),
 ]
